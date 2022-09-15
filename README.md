@@ -7,7 +7,7 @@ local db = require "db"
 ```
 
 ## 二、配置属性
-- **`byte_order`** 字节序&ensp;&ensp;`"="` 跟随系统&ensp;`">"` 大端&ensp;`"="` 小端
+- **`byte_order`** 字节序&ensp;&ensp;`"="` 跟随系统&ensp;`">"` 大端&ensp;`"<"` 小端
 - **`block_size`** 簇大小&ensp;&ensp;`必须为8的倍数`
 ```lua
 db.byte_order = '='
