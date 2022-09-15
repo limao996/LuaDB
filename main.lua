@@ -1,20 +1,34 @@
-local LuaDB = require 'LuaDB'
+local db = require 'db' -- 导入库
 
-local db = LuaDB.open('test.db', false) -- 打开数据库，第二参数为数组模式
+db.byte_order = '=' -- 数据库字节序 =为跟随系统 >为大端字节序 <为小端字节序
+db.block_size = 4096 * 8 -- 数据库簇大小 指针占8字节 簇大小必须为8的倍数
 
-db.a = {
-  a = 132,
-  b = 456,
-  c = {
-    d = "test",
-  }
-}
+local test = db.open('test.db') -- 打开数据库
 
-db.b = true
+test:set('a', 123) -- 存储数值
+test:set('b', true) -- 存储布尔值
+test:set('c', '测试') -- 存储字符串
+test:set('d', function()
+end) -- 存储函数
+test:set('e', {
+    a = 123
+}) -- 创建子表并赋值a
 
-print(db.a.c.d)
-print(db.b)
-print(#db)
+print(test:get('a')) -- 读取数据
+print(test:get('b'))
+print(test:get('c'))
+print(test:get('d'))
 
-db:close() -- 关闭数据库
+local e = test:get('e') -- 获取子表 
+print(e:get('a'))
+e:put('b', 'abc')
+print(e:get('b'))
 
+print(test:has('a')) -- 成员是否存在
+test:remove('a') -- 删除成员a
+print(test:has('a'))
+
+test:fset('key', 'ii', 123, 456) -- 存储二进制数据
+print(test:fget('key', 'ii')) -- 读取二进制数据
+
+test:close() -- 关闭数据库
