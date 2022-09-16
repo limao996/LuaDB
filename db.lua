@@ -1,4 +1,4 @@
-local db, sdb, fw, fg, fm = {}, {}, 'fw', 'fg', 'fm'
+local db, sdb, stream, fw, fg, fm = {}, {}, {}, 'fw', 'fg', 'fm'
 
 local pack, unpack, packsize = string.pack, string.unpack, string.packsize
 
@@ -6,6 +6,8 @@ local byte_order = ''
 local block_size = 32768
 
 local F = {'T', 'TT', 'B', 's', 'n', 'sB'}
+
+setmetatable(db, db)
 
 local function hash(s, n)
     if math.type(s) == 'integer' then
@@ -20,6 +22,18 @@ local function hash(s, n)
         h = h ~ ((h << 5) + string.byte(s, i) + (h >> 2))
     end
     return h % (n / 8)
+end
+
+function db:__index(k)
+    if type(k) == 'number' then
+        if k > 0 then
+            local fmt = string.format('c%d', k)
+            return pack(fmt, '')
+        elseif k < 0 then
+            return {db, -k}
+        end
+        return ''
+    end
 end
 
 function db.open(path)
@@ -149,7 +163,7 @@ function db:remove(k)
 end
 
 function db:put(k, v)
-    local tp, len = type(v), 0
+    local tp, len, is = type(v), 0
     if tp == 'nil' then
         tp = 0
         v = ''
@@ -167,17 +181,24 @@ function db:put(k, v)
         len = 1
         v = v and '\1' or '\0'
     elseif tp == 'table' then
-        tp = 4
-        local code = string.format('%s$%s', self.hash, k)
-        for k, v in pairs(v) do
-            if math.type(k) == 'integer' then
-                k = math.tointeger(k)
+        if v[1] == db then
+            tp = 1
+            len = 8 + v[2]
+            v = pack(F.T, v[2])
+            is = true
+        else
+            tp = 4
+            local code = string.format('%s$%s', self.hash, k)
+            for k, v in pairs(v) do
+                if math.type(k) == 'integer' then
+                    k = math.tointeger(k)
+                end
+                k = string.format('%s$%s', code, k)
+                self:put(k, v)
             end
-            k = string.format('%s$%s', code, k)
-            self:put(k, v)
+            v = pack(F.s, code)
+            len = #v
         end
-        v = pack(F.s, code)
-        len = #v
     elseif tp == 'function' then
         tp = 5
         v = pack(F.s, string.dump(v, true))
@@ -200,8 +221,10 @@ function db:put(k, v)
             n = 8 + unpack(F.T, self.fw:read(8))
         elseif tp == 2 then
             n = 8
-        else
+        elseif tp == 3 then
             n = 1
+        else
+            n = 0
         end
 
         if n < len then
@@ -216,7 +239,14 @@ function db:put(k, v)
     end
 
     self.fw:seek('set', addr)
-    self.fw:write(pack(F.sB, k, tp)):write(v)
+    self.fw:write(pack(F.sB, k, tp))
+    self.fw:write(v)
+
+    if is then
+        self.fw:seek('cur', len - 9)
+        self.fw:write('\0')
+    end
+
     return self
 end
 
@@ -248,6 +278,30 @@ function db:get(k)
     end
 end
 
+function db:stream(k)
+    local _, addr, size = self:addr(k)
+    if addr == 0 then
+        return
+    end
+    self.fw:seek('set', addr + 8 + size)
+    local tp = unpack(F.B, self.fw:read(1))
+    if tp ~= 1 then
+        return
+    end
+    local n = unpack(F.T, self.fw:read(8))
+
+    local obj = {
+        s = addr + 8 + size + 9,
+        e = addr + 8 + size + 9 + n,
+        p = addr + 8 + size + 9,
+        len = n,
+        fw = self.fw,
+        __len = stream.size,
+        __index = stream
+    }
+    return setmetatable(obj, obj)
+end
+
 function db:fput(k, fmt, ...)
     return self:set(k, pack(fmt, ...))
 end
@@ -260,6 +314,13 @@ function db:fget(k, fmt)
     local t = {unpack(fmt, v)}
     t[#t] = nil
     return table.unpack(t)
+end
+
+function db:close()
+    self.fw:close()
+    self.fg:close()
+    self.fm:close()
+    return self
 end
 
 function sdb:has(k)
@@ -276,6 +337,14 @@ function sdb:remove(k)
     end
     k = string.format('%s$%s', self.hash, k)
     return self.parent:remove(k)
+end
+
+function sdb:stream(k)
+    if math.type(k) == 'integer' then
+        k = math.tointeger(k)
+    end
+    k = string.format('%s$%s', self.hash, k)
+    return self.parent:stream(k)
 end
 
 function sdb:put(k, v)
@@ -312,11 +381,56 @@ function sdb:fget(k, fmt)
     return self.parent:fget(k, fmt)
 end
 
-function db:close()
-    self.fw:close()
-    self.fg:close()
-    self.fm:close()
+function stream:size()
+    return self.len
+end
+
+function stream:seek(mode, n)
+    local s, e, p = self.s, self.e, self.p
+    if mode == 'set' then
+        n = n or 1
+        p = s + n - 1
+    elseif mode == 'cur' then
+        n = n or 0
+        p = p + n
+    elseif mode == 'end' then
+        n = n or -1
+        p = e + n + 1
+    end
+    if p < s or p > e then
+        error('db::数据越界！')
+    end
+    self.p = p
+    return p - s + 1
+end
+
+function stream:write(fmt, ...)
+    if ... then
+        fmt = pack(fmt, ...)
+    end
+    self.fw:seek('set', self.p)
+    self.fw:write(fmt)
+    self:seek('cur', #fmt)
     return self
+end
+
+function stream:read(fmt)
+    local n = fmt
+    if not n then
+        n = self.e - self.p
+    elseif type(fmt) == 'string' then
+        n = packsize(n)
+    end
+    self.fw:seek('set', self.p)
+    local s = self.fw:read(n)
+    self:seek('cur', n)
+
+    if type(fmt) == 'string' then
+        s = {unpack(fmt, s)}
+        s[#s] = nil
+        return table.unpack(s)
+    end
+    return s
 end
 
 db.set = db.put

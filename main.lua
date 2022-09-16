@@ -31,4 +31,16 @@ print(test:has('a'))
 test:fset('key', 'ii', 123, 456) -- 存储二进制数据
 print(test:fget('key', 'ii')) -- 读取二进制数据
 
+if not test:has('io') then
+    test:put('io', db[8]) -- 申请8字节的存储空间 负数不填充\0
+end
+local stream = test:stream('io') -- 打开数据流 仅限string类型
+stream:write('abcd') -- 写入数据
+stream:write('i', 65535) -- 写入二进制数据
+stream:seek('set', 2) -- 移动指针 set数据头 cur偏移 end数据尾
+print(stream:read()) -- 读取剩余数据
+stream:seek('set') -- 移动指针到数据头
+print(stream:read(4)) -- 读取4个字节
+print(stream:read('i')) -- 读取二进制数据 仅支持固定字节
+
 test:close() -- 关闭数据库

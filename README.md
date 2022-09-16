@@ -1,13 +1,24 @@
 # LuaDB
 基于 Lua 的高性能持久化 kv 数据库 *`(lua >= 5.3)`*
 
+## 目录
+[TOC]
+
+## 更新内容
+- **`2.5.0`** (2022-9-16 21:14)
+  1. 修复若干bug
+  2. 新增流模式
+
+## 联系方式
+> QQ：762259384
+
 ## 一、导入模块
 ``` lua
 local db = require "db"
 ```
 
 ## 二、配置属性
-- **`byte_order`** 字节序&ensp;&ensp;`"="` 跟随系统&ensp;&ensp;`">"` 大端&ensp;&ensp;`"<"` 小端
+- **`byte_order`** 字节序&ensp;&ensp;`"="` 跟随系统&ensp;&ensp;`">"` 大端&ensp;&ensp;`<` 小端
 - **`block_size`** 簇大小&ensp;&ensp;`必须为8的倍数`
 ```lua
 db.byte_order = '='
@@ -21,7 +32,7 @@ local data = db.open("data.db")
 
 ## 四、存储数据
 - **`set` `put`** 存储 Lua 类型的数据
-  ~以下为支持的数据类型~
+  `以下为支持的数据类型`
   + **string**
   + **number**
   + **boolean**
@@ -77,10 +88,37 @@ else
 end
 ```
 
-## 八、关闭数据库
+## 八、数据流操作
+传入 `db[index]` 可申请存储空间，如 `index` 为负数，则不填充占位符、
+```lua
+data:put('io', db[8])
+```
+调用 `stream` 方法获取数据流对象
+```lua
+local stream = data:stream('io')
+```
+以下为数据流的api
+- **`seek(mode, pos)`** 移动指针
+  + **set** `数据头`
+  + **cur** `偏移`
+  + **end** `数据尾`
+- **`write(string)`** 写入数据
+- **`write(fmt, ...)`** 写入二进制数据 `格式参考string.pack`
+- **`read()`** 读取剩余数据
+- **`read(number)`** 读取指定长度
+- **`read(fmt)`** 读取二进制数据 `不支持变长类型`
+
+```lua
+stream:write('abcd') -- 写入数据
+stream:write('i', 65535) -- 写入二进制数据
+stream:seek('set', 2) -- 移动指针 set数据头 cur偏移 end数据尾
+print(stream:read()) -- 读取剩余数据
+stream:seek('set') -- 移动指针到数据头
+print(stream:read(4)) -- 读取4个字节
+print(stream:read('i')) -- 读取二进制数据 仅支持固定字节
+```
+
+## 九、关闭数据库
 ```lua
 data:close()
 ```
-
-### 联系方式
-> QQ：762259384
