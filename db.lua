@@ -1,4 +1,4 @@
-local db, sdb, stream, fw, fg, fm = {}, {}, {}, 'fw', 'fg', 'fm'
+local db, sdb, stream = {}, {}, {}
 
 local setmetatable, tostring, type, pairs, error, load = setmetatable, tostring, type, pairs, error, load
 
