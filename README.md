@@ -1,10 +1,10 @@
 # LuaDB
-基于 Lua 的高性能持久化 kv 数据库 *`(lua >= 5.3)`*
+基于 Lua 的高性能本地 kv 数据库 *`(lua >= 5.3)`*
 
 ## 更新内容
 - **`2.5.0`** (2022-9-16 21:14)
   + 修复若干bug
-  + 新增流模式
+  + 新增流操作
 
 ## 联系方式
 > QQ：762259384
@@ -15,7 +15,7 @@ local db = require "db"
 ```
 
 ## 二、配置属性
-- **`byte_order`** 字节序&ensp;&ensp;`"="` 跟随系统&ensp;&ensp;`">"` 大端&ensp;&ensp;`<` 小端
+- **`byte_order`** 字节序&ensp;&ensp;`"="` 跟随系统&ensp;&ensp;`">"` 大端&ensp;&ensp;`"<"` 小端
 - **`block_size`** 簇大小&ensp;&ensp;`必须为8的倍数`
 ```lua
 db.byte_order = '='
@@ -115,7 +115,23 @@ print(stream:read(4)) -- 读取4个字节
 print(stream:read('i')) -- 读取二进制数据 仅支持固定字节
 ```
 
-## 九、关闭数据库
+## 九、成员指针
+- **`id`** 获取成员指针，返回 `table`
+  + **exist** `指针是否非空`
+  + **pointer** `指针地址`
+  + **key** `指针绑定的key`
+
+> tips: 使用指针访问成员可避免重复寻址
+```lua
+local f = data:id('f') -- 获取成员指针
+if not f.exist then -- 判断指针是否不存在
+    data:put(f, 'pointer') -- 使用指针put
+end
+print(data:get(f)) -- 使用指针get
+```
+
+
+## 十、关闭数据库
 ```lua
 data:close()
 ```
