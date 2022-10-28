@@ -104,9 +104,6 @@ function db:id(key, is)
 end
 
 function db:addr(pointer, is, key)
-    if not pointer then
-        pointer = pointer.pointer
-    end
     local pointer = self.fm:seek('set', pointer)
     local addr = self.fm:read(8)
     if addr then
