@@ -2,8 +2,15 @@
 基于 Lua 的高性能本地 kv 数据库 *`(lua >= 5.3)`*
 
 ## 更新内容
+- **`3.0.0`**（2022-12-25)
+  + 重构项目
+  + 区分 `integer` 与 `double`
+  + 支持迭代器遍历
+  + 支持地址操作成员
+  + 支持设置地址长度
+  + 区分表单与子数据库
 - **`2.6.0`**（2022-10-28）
-  + 引入指针概念
+  + 支持指针操作成员
   + 更改 `stream` 的 `read` 方法特性
 - **`2.5.0`**（2022-09-16）
   + 修复若干 bug
@@ -17,81 +24,97 @@
 local db = require "db"
 ```
 
-## 二、配置属性
-- **`byte_order`** 字节序&ensp;&ensp;`"="` 跟随系统&ensp;&ensp;`">"` 大端&ensp;&ensp;`"<"` 小端
-- **`block_size`** 簇大小&ensp;&ensp;`必须为8的倍数`
-```lua
-db.byte_order = '='
-db.block_size = 4096 * 8
-```
-
-## 三、打开数据库
+## 二、打开数据库
+> 默认配置
 ``` lua
 local data = db.open("data.db")
 ```
-
-## 四、存储数据
-- **`set` `put`** 存储 Lua 类型的数据
-  `以下为支持的数据类型`
-  + **string**
-  + **number**
-  + **boolean**
-  + **table** `建立子数据库`
-  + **function** `会丢失调试信息和upvalue`
-- **`fset` `fput`** 存储二进制数据
-```lua
-data:set('a', 123)
-data:set('b', true)
-data:set('c', '测试')
-data:set('d', function()end)
-data:set('e', {a=456})
-data:fset('k', 'if', 123, 1.2) --格式可参考string.pack
+> 指定配置
+``` lua
+local data = db.open({
+    path = 'data.db', -- 数据库路径
+    block_size = 4096, -- 簇大小，适当调整可减少hash碰撞
+    can_each = false, -- 遍历支持
+    addr_size = db.BIT_32, -- 地址长度
+    byte_order = db.BYTE_AUTO -- 二进制字节序
+})
 ```
 
-## 五、读取数据
-- **`get`** 读取 Lua 类型的数据
+## 三、存储数据
+- **`set`** 存储数据
+- **`fset`** 存储二进制数据
+``` lua
+data:set(1, 123) -- integer
+data:set(2, 123.0) -- double
+data:set(4, true) -- boolean 
+data:set(5, 'hello') -- string
+data:set(6, nil) -- nil
+data:set(7, {1, 2, 3}) -- table
+data:set('push', function(a, b) -- function
+    return a + b
+end) -- 仅支持lua函数，且会丢失upvalue与调试信息
+```
+
+## 四、读取数据
+- **`get`** 读取数据
 - **`fget`** 读取二进制数据
-```lua
-print(data:get('a')) --输出：123.0
-print(data:get('b')) --输出：true
-print(data:get('c')) --输出：测试
-print(data:get('d')) --输出：function
-print(data:fget('k', 'if'))
-```
-> 如果该成员存储了table类型，`get` 方法将返回一个db对象，该对象可调用数据库大部分方法
-```lua
-local e = data:get('e')
-print(e:get('a')) --输出：456.0
-e:put('b', 'abc')
-print(e:get('b')) --输出：abc
-```
-> tips: 删除或覆盖 `table` 类型的数据时，其内部成员需要手动删除
-```lua
-e:remove('a')
-e:remove('b')
-data:remove('e')
+``` lua
+print(data:get(1)) -- 123
+print(data:get(2)) -- 123.0
+print(data:get(3)) -- 3.1415926
+print(data:get(4)) -- true
+print(data:get(5)) -- hello
+print(data:get(6)) -- nil
+print(data:get(7)) -- table
+
+local push = data:get('push')
+print(push(123, 456)) -- 579
 ```
 
-## 六、删除成员
+## 五、删除成员
+> tips: 该方法只会将成员赋为空值，不会真正删除成员
 ``` lua
-data:remove('a')
---或
-data:set('a', nil)
+data:del('key')
+-- 或
+data:set('key', nil)
 ```
 
-## 七、成员是否存在
+## 六、成员是否存在
 ``` lua
-if data:has('b') then
-  --存在
+if data:has('key') then
+  -- 存在
 else
-  --不存在
+  -- 不存在
 end
 ```
 
-## 八、数据流操作
-传入 `db[index]` 可申请存储空间，如 `index` 为负数，则不填充占位符、
+## 七、遍历成员
+``` lua
+for o in data:each() do -- 返回成员地址对象
+    print(o.name, data:get(o)) -- 成员地址可作为成员标识使用
+end
+```
+
+## 八、子数据库
+> 传入 `db.TYPE_DB` 可创建空数据库
+``` lua
+data:set('a', db.TYPE_DB) -- 空数据库
+local a = data:get('a')
+a:set('key', 123)
+```
+> 传入实例将自动写入内部数据
+``` lua
+data:set('b', db.TYPE_DB {
+    a = 1, b = 2, c = 3
+}) -- 创建子数据库
+local b = data:get('b') -- 返回LuaDB对象
+print(b:get(c)) -- 3
+```
+
+## 九、流操作
+传入 `db.TYPE_STREAM[index]` 可创建存储空间，如 `index` 为负数，则不填充占位符、
 ```lua
-data:put('io', db[8])
+data:set('io', db.TYPE_STREAM[8])
 ```
 调用 `stream` 方法获取数据流对象
 ```lua
@@ -118,23 +141,71 @@ print(stream:read(4)) -- 读取4个字节
 print(stream:read('i')) -- 读取二进制数据 仅支持固定字节
 ```
 
-## 九、成员指针
-- **`id`** 获取成员指针，返回 `table`
-  + **exist** `指针是否非空`
-  + **pointer** `指针地址`
-  + **key** `指针绑定的key`
+## 十、指针与地址
+- **`id`** 成员指针
+  + **pointer** `指针`
+  + **key** `成员key`
+  + **name** `成员名称`
+- **`addr`** 成员地址
+  + **pointer** `指针`
+  + **key** `成员key`
+  + **key_size** `key长度`
+  + **name** `成员名称`
+  + **addr** `地址`
 
-> tips: 使用指针访问成员可避免重复寻址
+> tips: 使用指针或地址访问成员可避免重复寻址
 ```lua
-local f = data:id('f') -- 获取成员指针
-if not f.exist then -- 判断指针是否不存在
-    data:put(f, 'pointer') -- 使用指针put
-end
-print(data:get(f)) -- 使用指针get
+data:set('a', 123) -- 初始化成员
+
+-- 成员id，无需查找指针，但要读取地址
+local a1 = data:id('a')
+-- 成员地址，无需读取地址，效率最高
+local a2 = data:addr('a')
+
+local v = data:get(a1) -- 使用成员id
+data:set(a2, v + 1) --使用成员地址
+
+local a3 = data:addr(a1) -- 成员id转成员地址
+local a4 = data:id(a2) -- 成员地址转成员id
+print(data:get(a3)) -- 124
+print(data:get(a4)) -- 124
 ```
 
-
-## 十、关闭数据库
+## 十一、关闭数据库
 ```lua
 data:close()
 ```
+
+## 常量
+- `BIT_16`  地址16位
+- `BIT_32`  地址32位
+- `BIT_64`  地址64位
+- `BYTE_LE` 小端
+- `BYTE_BE` 大端
+- `BYTE_AUTO` 跟随系统
+- `TYPE_DB` 库类型
+- `TYPE_ID` 指针类型
+- `TYPE_ADDR` 地址类型
+- `TYPE_STREAM` 流类型
+
+## 方法
+- LuaDB
+  + `db.open` 打开数据库
+  + `db:reset` 重置数据库
+  + `db:id` 成员id
+  + `db:addr` 成员地址
+  + `db:load_id` 加载成员id
+  + `db:set` 存储数据
+  + `db:get` 读取数据
+  + `db:del` 删除数据
+  + `db:has` 成员是否存在
+  + `db:fset` 写入二进制数据
+  + `db:fget` 读取二进制数据
+  + `db:each` 遍历成员
+  + `db:stream` 打开流
+  + `db:close` 关闭数据库
+- Stream
+  + `stream:length` 空间长度
+  + `stream:seek` 移动流指针
+  + `stream:write` 写入数据
+  + `stream:read` 读取数据
