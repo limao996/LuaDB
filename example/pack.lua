@@ -15,7 +15,10 @@ db.open({ -- 打开数据库
     }
 }:output('assets/g.bin'):close() -- 导出数据并关闭数据库
 
-local h = db.open('assets/h.db')
+local h = db.open({ -- 打开数据库
+    path = 'assets/h.db',
+    can_each = true -- 开启遍历支持
+})
 
 h:input('assets/g.bin') -- 导入数据
 

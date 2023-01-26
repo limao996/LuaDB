@@ -204,7 +204,10 @@ local g = db.open({
 g:output('assets/g.bin') -- 导出数据
 g:close()
 
-local h = db.open('assets/h.db')
+local h = db.open({
+    path = 'assets/h.db',
+    can_each = true
+})
 h:input('assets/g.bin') -- 导入数据
 h:close()
 ```

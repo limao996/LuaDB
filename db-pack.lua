@@ -130,7 +130,6 @@ end
 ---@param f string
 ---@return LuaDB
 function M:input(f)
-    assert(self.can_each, _NAME .. '::请开启遍历支持！')
     f = io.open(f)
     local sf = { DATABASE, self }
     local stack = {}
