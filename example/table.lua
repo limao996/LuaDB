@@ -1,6 +1,6 @@
 local db = require 'db'
 local d = db.open({
-    path = 'database/d.db',
+    path = 'assets/d.db',
     can_each = true -- 开启遍历支持
 })
 

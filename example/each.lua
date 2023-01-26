@@ -1,14 +1,16 @@
 local db = require 'db'
 
 local c = db.open({
-    path = 'database/c.db',
+    path = 'assets/c.db',
     can_each = true -- 开启遍历支持
 })
 
-c:set('a', 1)
-c:set('b', 'abc')
-c:set('c', false)
-c:set('d', nil)
+c:apply { -- 写入多条数据
+    a = 1,
+    b = 'abc',
+    c = false,
+    d = {}
+}
 
 for i = 1, 5 do
     c:set(i, -i)
@@ -24,7 +26,7 @@ c:close()
 a       1
 b       abc
 c       false
-d       nil
+d       {}
 1       -1
 2       -2
 3       -3

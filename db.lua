@@ -11,7 +11,9 @@
 ---@field can_each boolean 遍历支持
 ---@field ver integer 数据库版本
 ---@field BIT_16 integer 地址16位
+---@field BIT_24 integer 地址24位
 ---@field BIT_32 integer 地址32位
+---@field BIT_48 integer 地址48位
 ---@field BIT_64 integer 地址64位
 ---@field BYTE_LE string 小端
 ---@field BYTE_BE string 大端
@@ -21,9 +23,11 @@
 ---@field TYPE_ADDR LUADB_ADDR 成员地址
 ---@field TYPE_STREAM LUADB_STREAM 成员数据流
 local db = {
-    ver = 30,
+    ver = 31,
     BIT_16 = 2,
+    BIT_24 = 3,
     BIT_32 = 4,
+    BIT_48 = 6,
     BIT_64 = 8,
     BYTE_LE = '<',
     BYTE_BE = '>',
@@ -60,10 +64,10 @@ local stream = {}
 
 -- global转local
 local pack, unpack, packsize = string.pack, string.unpack, string.packsize
-local type, pairs, tostring, setmetatable, getmetatable, error, assert, load =
-type, pairs, tostring, setmetatable, getmetatable, error, assert, load
-local math_type, string_dump, table_concat, string_byte, table_unpack =
-math.type, string.dump, table.concat, string.byte, table.unpack
+local type, pairs, tostring, setmetatable, getmetatable, error, assert, load, next =
+type, pairs, tostring, setmetatable, getmetatable, error, assert, load, next
+local math_type, string_dump, table_concat, string_byte, table_unpack, table_insert =
+math.type, string.dump, table.concat, string.byte, table.unpack, table.insert
 
 
 -- 格式串模板
@@ -76,91 +80,105 @@ local _C = { -- 配置模板
     byte_order = db.BYTE_AUTO
 }
 
---- 序列化数值
+---序列化类型
+local NIL = 0
+local STRING = 1
+local INTEGER = 2
+local DOUBLE = 3
+local BOOLEAN = 4
+local FUNCTION = 5
+local TABLE = 6
+local NUMBER = 7
+
+--- 序列化table
 ---@private
----@param t any 值
----@return any
+---@param t table table
+---@return string
 local function serialize(t)
-    -- 获取类型
-    local tp = type(t)
-    if tp == 'string' then -- 判断为字符串
-        -- 打包为二进制串 类型/字符串
-        return pack('bs', 1, t)
-    elseif tp == 'number' then -- 判断为数值
-        if math_type(t) == 'integer' then -- 判断为整数
-            return pack('bi8', 2, t) -- 打包为int64
+    local s = {}
+    for k, v in next, t do
+        local tp = type(k)
+        if tp == 'string' then
+            table_insert(s, (pack('Bs2', STRING, k)))
+        elseif tp == 'number' then
+            table_insert(s, (pack('Bn', NUMBER, k)))
         end
-        -- 否则打包为number
-        return pack('bn', 3, t)
-    elseif tp == 'boolean' then -- 判断为布尔值
-        -- 打包为字节
-        return pack('bb', 4, t and 1 or 0)
-    elseif tp == 'function' then -- 判断为函数
-        -- 序列化并打包为字符串
-        return pack('bs', 5, string_dump(t))
-    elseif tp == 'table' then -- 判断为table
-        local s = {} -- 申明table
-        for k, v in pairs(t) do -- 遍历传入的table
-            -- 序列化key与value
-            k, v = serialize(k), serialize(v)
-            -- 序列化成功即赋值
-            if k ~= nil and v ~= nil then
-                s[#s + 1] = k .. v -- 将key与value拼接并赋值
+        tp = type(v)
+        if tp == 'string' then
+            table_insert(s, (pack('Bs4', STRING, v)))
+        elseif tp == 'number' then
+            if math_type(v) == 'integer' then
+                table_insert(s, (pack('Bi8', INTEGER, v)))
+            else
+                table_insert(s, (pack('Bn', DOUBLE, v)))
             end
+        elseif tp == 'boolean' then
+            table_insert(s, (pack('BB', BOOLEAN, v and 1 or 0)))
+        elseif tp == 'function' then
+            table_insert(s, (pack('Bs4', FUNCTION, string_dump(v, true))))
+        elseif tp == 'table' then
+            table_insert(s, (pack('B', TABLE)))
+            table_insert(s, serialize(v))
+            table_insert(s, (pack('B', TABLE)))
+        else
+            table_insert(s, (pack('B', NIL)))
         end
-        s = table_concat(s) -- 拼接数组，返回二进制串
-        return pack('bs', 6, s) -- 打包为字符串
     end
+    return table_concat(s)
 end
 
---- 反序列化数值
+--- 反序列化table
 ---@private
----@param s string 二进制串
----@param n integer 偏移值
----@return any
----@overload fun(s:string):any
-local function deserialize(s, n)
-    n = n or 1 -- 默认不偏移
-    local tp = unpack('b', s, n) -- 解包类型值
-    if tp == 1 then -- 判断为字符串
-        -- 解包为字符串
-        return unpack('s', s, n + 1)
-    elseif tp == 2 then -- 判断为整数
-        -- 解包为int64
-        return unpack('i8', s, n + 1)
-    elseif tp == 3 then -- 判断为数值
-        -- 解包为number
-        return unpack('n', s, n + 1)
-    elseif tp == 4 then -- 判断为布尔值
-        -- 解包byte，并判断是否为1
-        local v, n = unpack('b', s, n + 1)
-        return v == 1, n
-    elseif tp == 5 then -- 判断为函数
-        -- 解包为字符串并load
-        local v, n = unpack('s', s, n + 1)
-        return load(v), n
-    elseif tp == 6 then -- 判断为table
-        local t = {} -- 申明table
-        -- 解包成员为字符串
-        s, n = unpack('s', s, n + 1)
-        if #s > 0 then --判断table是否为空
-            local i = 1 -- 起始偏移值
-            while true do -- 遍历成员
-                -- 反序列化key
-                local k, n = deserialize(s, i)
-                i = n -- 偏移
-                -- 反序列化value
-                local v, n = deserialize(s, i)
-                i = n -- 偏移
-                t[k] = v -- 赋值到table
-                -- 遍历结束，跳出循环
-                if i > #s then
-                    break
-                end
-            end
+---@param b string 二进制串
+---@return table
+local function deserialize(b)
+    local pos = 1
+    local sf = {}
+    local stack = {}
+    while true do
+        local pop, pass = stack[#stack] or sf
+        local tp, k = b:sub(pos, pos)
+        pos = pos + 1
+        if tp == '' then break end
+        tp = unpack('B', tp)
+        if tp == NUMBER then
+            k = unpack('n', b, pos)
+            pos = pos + 8
+        elseif tp == STRING then
+            k = unpack('s2', b, pos)
+            pos = pos + #k + 2
+        else
+            stack[#stack] = nil
+            pass = true
         end
-        return t, n -- 返回table
+        if not pass then
+            local tp, v = b:sub(pos, pos)
+            pos = pos + 1
+            tp = unpack('B', tp)
+            if tp == STRING then
+                v = unpack('s4', b, pos)
+                pos = pos + #v + 4
+            elseif tp == INTEGER then
+                v = unpack('i8', b, pos)
+                pos = pos + 8
+            elseif tp == DOUBLE then
+                v = unpack('n', b, pos)
+                pos = pos + 8
+            elseif tp == BOOLEAN then
+                v = unpack('B', b, pos) == 1
+                pos = pos + 1
+            elseif tp == FUNCTION then
+                v = unpack('s4', b, pos)
+                pos = pos + #v + 4
+                v = load(v)
+            elseif tp == TABLE then
+                v = {}
+                stack[#stack + 1] = v
+            end
+            pop[k] = v
+        end
     end
+    return sf
 end
 
 --- hash函数
@@ -344,7 +362,7 @@ function db:unpack(addr)
         return v0
     elseif tp == 7 then
         local n = unpack(F.T, fw:read(8))
-        return (deserialize(fw:read(n))) -- 反序列化
+        return deserialize(fw:read(n)) -- 反序列化
     end
 end
 
@@ -542,6 +560,37 @@ function db:add_gc(s0, e0)
     end
 end
 
+--- 整理碎片表
+---@return LuaDB
+function db:tidy()
+    -- 申明变量
+    local F = self.F
+    local addr_size = self.addr_size
+    local fg = self.fg
+    -- 遍历碎片
+    fg:seek('set')
+    local gc = {}
+    while true do
+        local s, e = fg:read(addr_size * 2)
+        if not s then
+            break
+        end
+        s, e = unpack(F.AA, s)
+        if e - s ~= 0 then -- 有效碎片
+            table_insert(gc, { s, e })
+        end
+    end
+    self.fg = io.open(self.path .. '.gc', 'w+b')
+    self.fg:setvbuf('no')
+
+    for i = 1, #gc do
+        local v = gc[i]
+        self:add_gc(v[1], v[2])
+    end
+
+    return self
+end
+
 --- 检查key类型并调用
 ---@private
 ---@param k any|LUADB_ID|LUADB_ADDR
@@ -686,6 +735,16 @@ function db:set(k, v)
     return self
 end
 
+---写入多条数据
+---@param args table
+---@return LuaDB
+function db:apply(args)
+    for k, v in pairs(args) do
+        self:set(k, v)
+    end
+    return self
+end
+
 --- 读取数据
 ---@param k any|LUADB_ID|LUADB_ADDR 成员key
 ---@return any
@@ -765,7 +824,6 @@ function db:each()
         fm:seek('set', node)
         local addr = fm:read(addr_size)
         addr = unpack(F.A, addr)
-        --print(addr)
         -- 得到成员地址的属性
         fw:seek('set', addr)
         local n = fw:read(8)

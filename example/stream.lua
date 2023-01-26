@@ -1,5 +1,5 @@
 local db = require 'db'
-local f = db.open('database/f.db')
+local f = db.open('assets/f.db')
 
 f:set('a', db.TYPE_STREAM[5]) -- 创建5字节的空间，填充\0
 local a = f:stream('a') -- 打开流

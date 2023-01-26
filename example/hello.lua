@@ -1,9 +1,9 @@
 local db = require 'db'
 
-local a = db.open('database/a.db')
+local a = db.open('assets/a.db')
 -- 以上代码等同于
 local b = db.open({
-    path = 'database/b.db', -- 数据库路径
+    path = 'assets/b.db', -- 数据库路径
     block_size = 4096, -- 簇大小，适当调整可减少hash碰撞
     can_each = false, -- 遍历支持
     addr_size = db.BIT_32, -- 地址长度

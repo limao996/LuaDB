@@ -1,5 +1,5 @@
 local db = require 'db'
-local e = db.open('database/e.db')
+local e = db.open('assets/e.db')
 
 e:set('a', 123) -- 初始化成员
 

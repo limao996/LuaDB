@@ -2,6 +2,8 @@
 基于 Lua 的高性能本地 kv 数据库 *`(lua >= 5.3)`*
 
 ## 更新内容
+- **`3.1.0`**（2023-01-26)
+  + 新增 `apply` 与 `tidy` 方法
 - **`3.0.0`**（2022-12-25)
   + 重构项目
   + 区分 `integer` 与 `double`
@@ -53,6 +55,12 @@ data:set(7, {1, 2, 3}) -- table
 data:set('push', function(a, b) -- function
     return a + b
 end) -- 仅支持lua函数，且会丢失upvalue与调试信息
+
+data:fset('fmt', 'I', 1234) -- 存储二进制数据
+
+data:apply { -- 批量存储数据
+    a1 = 1, a2 = 2, a3 = 3
+}
 ```
 
 ## 四、读取数据
@@ -69,6 +77,8 @@ print(data:get(7)) -- table
 
 local push = data:get('push')
 print(push(123, 456)) -- 579
+
+print(data:fget('fmt', 'I'))-- 1234
 ```
 
 ## 五、删除成员
@@ -176,9 +186,33 @@ print(data:get(a4)) -- 124
 data:close()
 ```
 
+## 十二、打包数据
+> tips: 该功能需绑定 `db-pack` 扩展
+```lua
+local db = require 'db' -- 导入LuaDB
+require 'db-pack':bind(db) -- 导入扩展模块并绑定LuaDB
+```
+- **`input`** 导入表单
+- **`output`** 导出表单
+```lua
+local g = db.open({
+    path = 'assets/g.db',
+    can_each = true
+})
+g:output('assets/g.bin') -- 导出数据
+g:close()
+
+local h = db.open('assets/h.db')
+h:input('assets/g.bin') -- 导入数据
+h:close()
+```
+
+
 ## 常量
 - `BIT_16`  地址16位
+- `BIT_24`  地址24位
 - `BIT_32`  地址32位
+- `BIT_48`  地址48位
 - `BIT_64`  地址64位
 - `BYTE_LE` 小端
 - `BYTE_BE` 大端
@@ -204,6 +238,11 @@ data:close()
   + `db:each` 遍历成员
   + `db:stream` 打开流
   + `db:close` 关闭数据库
+  + `db:apply` 批量存储数据
+  + `db:tidy` 整理碎片表
+  + db-pack
+    - `db:input` 导入表单
+    - `db:output` 导出表单
 - Stream
   + `stream:length` 空间长度
   + `stream:seek` 移动流指针
