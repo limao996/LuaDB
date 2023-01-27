@@ -157,7 +157,7 @@ function M:input(f)
                 end
             else
                 local p = stack[#stack] or sf
-                if not p[2].get_pointe then
+                if not p[2].get_pointer then
                     p[2][pop[3]] = super.TYPE_DB(pop[2])
                 else
                     p[2]:set(pop[3], super.TYPE_DB(pop[2]))
