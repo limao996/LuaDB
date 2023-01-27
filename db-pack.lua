@@ -160,7 +160,7 @@ function M:input(f)
                 if not p[2].get_pointer then
                     p[2][pop[3]] = super.TYPE_DB(pop[2])
                 else
-                    p[2]:set(pop[3], super.TYPE_DB(pop[2]))
+                    p[2]:set(pop[3], pop[2])
                 end
             end
         end
