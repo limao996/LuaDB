@@ -1,4 +1,6 @@
 local db = require 'db'
+require 'db-stream':bind(db) -- 绑定LuaDB主模块
+
 local f = db.open('assets/f.db')
 
 f:set('a', db.TYPE_STREAM[5]) -- 创建5字节的空间，填充\0

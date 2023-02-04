@@ -21,7 +21,6 @@
 ---@field TYPE_DB LUADB_DB 子数据库
 ---@field TYPE_ID LUADB_ID 成员指针
 ---@field TYPE_ADDR LUADB_ADDR 成员地址
----@field TYPE_STREAM LUADB_STREAM 成员数据流
 local db = {
     ver = 31,
     BIT_16 = 2,
@@ -34,13 +33,8 @@ local db = {
     BYTE_AUTO = '=',
     TYPE_ID = {},
     TYPE_ADDR = {},
-    TYPE_DB = {},
-    TYPE_STREAM = {}
+    TYPE_DB = {}
 }
-
----@class LUADB_STREAM
----@field [1] integer
----@field __index function
 
 ---@class LUADB_ADDR
 ---@field pointer integer
@@ -54,16 +48,8 @@ local db = {
 ---@class LUADB_DB
 ---@field __call function
 
----@class Stream
----@field private s integer
----@field private e integer
----@field private p integer
----@field private len integer
----@field private fw file
-local stream = {}
-
 -- global转local
-local pack, unpack, packsize = string.pack, string.unpack, string.packsize
+local pack, unpack = string.pack, string.unpack
 local type, pairs, tostring, setmetatable, getmetatable, error, assert, load, next =
 type, pairs, tostring, setmetatable, getmetatable, error, assert, load, next
 local math_type, string_dump, table_concat, string_byte, table_unpack, table_insert =
@@ -92,7 +78,7 @@ local NUMBER = 7
 
 --- 序列化table
 ---@private
----@param t table table
+---@param t table
 ---@return string
 local function serialize(t)
     local s = {}
@@ -277,7 +263,7 @@ end
 --- 打包数据
 ---@private
 ---@param v any 数据
----@return integer,integer,any,boolean
+---@return integer,integer,any
 function db:pack(v)
     -- 申明变量，并获取数据类型
     local F = self.F
@@ -311,12 +297,6 @@ function db:pack(v)
         tp = 6
         v = pack(F.AA, 0, 0)
         len = self.addr_size * 2
-    elseif getmetatable(v) == db.TYPE_STREAM then
-        -- 判断为流对象，写入空间长度
-        tp = 1
-        len = 8 + v[1]
-        v = pack(F.T, v[1])
-        mode = true -- 稀疏空间
     elseif tp == 'table' then
         tp = 7
         v = pack(F.s, serialize(v))
@@ -324,7 +304,7 @@ function db:pack(v)
     else
         error('LuaDB::不支持的类型::' .. tp)
     end
-    return tp, len, v, mode
+    return tp, len, v
 end
 
 --- 解包数据
@@ -492,8 +472,6 @@ end
 ---@return integer
 function db:new_addr(po)
     -- 定义变量
-    local addr_size = self.addr_size
-    local node_id = self.node_id
     local F = self.F
     local fw, fm = self.fw, self.fm
     -- 定位到指针
@@ -659,7 +637,7 @@ function db:set(k, v)
     local _v = v
     local fw, fm = self.fw, self.fm
     -- 打包数据
-    local tp, len, v, mode = self:pack(v)
+    local tp, len, v = self:pack(v)
     -- 得到成员属性
     local po, addr, size, k, ck = self:check_key(k)
     -- key转换类型，用于判断是否碰撞
@@ -728,9 +706,6 @@ function db:set(k, v)
                 v0:set(k, v)
             end
         end
-    elseif mode then -- 处理稀疏空间
-        fw:seek('cur', len - 9)
-        fw:write('\0')
     end
     return self
 end
@@ -839,39 +814,6 @@ function db:each()
     end
 end
 
---- 成员数据流
----@param k any|LUADB_ADDR|LUADB_ID 成员key
----@return Stream
-function db:stream(k)
-    -- 申明变量
-    local F = self.F
-    local fw = self.fw
-    -- 获取成员地址
-    local po, addr, size = self:check_key(k)
-    if addr == 0 then
-        return
-    end
-    -- 过滤不支持的类型
-    fw:seek('set', addr + 8 + size)
-    local tp = unpack(F.B, fw:read(1))
-    if tp ~= 1 then
-        return
-    end
-    -- 获取空间长度
-    local n = unpack(F.T, fw:read(8))
-    -- 创建数据流对象
-    local obj = {
-        s = addr + 8 + size + 9,
-        e = addr + 8 + size + 9 + n,
-        p = addr + 8 + size + 9,
-        len = n,
-        fw = fw,
-        __len = stream.size,
-        __index = stream
-    }
-    return setmetatable(obj, obj)
-end
-
 --- 关闭数据库
 ---@return LuaDB
 function db:close()
@@ -879,86 +821,6 @@ function db:close()
     self.fg:close()
     self.fm:close()
     return self
-end
-
---- 空间长度
----@return integer
-function stream:length()
-    return self.len
-end
-
---- 移动流指针
----@param mode string 移动模式
----@param n integer 移动距离
----@return integer 当前位置
-function stream:seek(mode, n)
-    local s, e, p = self.s, self.e, self.p
-    if mode == 'set' then -- 从头部开始
-        n = n or 1
-        p = s + n - 1
-    elseif mode == 'cur' then -- 偏移
-        n = n or 0
-        p = p + n
-    elseif mode == 'end' then -- 从尾部开始
-        n = n or -1
-        p = e + n + 1
-    end
-    if p < s or p > e then
-        error('LuaDB::stream::指针越界！')
-    end
-    self.p = p
-    return p - s + 1
-end
-
---- 写入数据
----@param fmt string 二进制格式串或数据
----@vararg any
----@return Stream
-function stream:write(fmt, ...)
-    if ... then
-        fmt = pack(fmt, ...)
-    end
-    self.fw:seek('set', self.p)
-    self.fw:write(fmt)
-    self:seek('cur', #fmt)
-    return self
-end
-
---- 读取数据
----@param fmt string|integer|nil 格式串|字节数|为空即读取剩余
----@return Stream
-function stream:read(fmt)
-    local n = fmt
-    local e, p = self.e, self.p
-    if not n then
-        n = e - p
-    elseif type(fmt) == 'string' then
-        n = packsize(n)
-    end
-
-    if p + n > e then
-        n = e - p
-    end
-
-    self.fw:seek('set', p)
-    local s = self.fw:read(n)
-    self:seek('cur', n)
-
-    if type(fmt) == 'string' then
-        s = { unpack(fmt, s) }
-        return table_unpack(s, 1, #s - 1)
-    end
-    return s
-end
-
---- 流类型的元方法
----@private
-function db.TYPE_STREAM:__index(k)
-    assert(k ~= 0, 'LuaDB::空间长度不可为0！')
-    if k > 0 then
-        return pack('c' .. k, '')
-    end
-    return setmetatable({ -k }, self)
 end
 
 --- 子数据库的元方法
@@ -970,5 +832,4 @@ end
 ---@private
 db.__index = db
 setmetatable(db.TYPE_DB, db.TYPE_DB)
-setmetatable(db.TYPE_STREAM, db.TYPE_STREAM)
 return db

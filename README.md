@@ -120,10 +120,16 @@ data:set('b', db.TYPE_DB {
     a = 1, b = 2, c = 3
 }) -- 创建子数据库
 local b = data:get('b') -- 返回LuaDB对象
-print(b:get(c)) -- 3
+print(b:get('c')) -- 3
 ```
 
 ## 九、流操作
+> tips: 该功能需绑定 `db-stream` 扩展
+```lua
+local db = require 'db' -- 导入LuaDB
+require 'db-stream':bind(db) -- 导入扩展模块并绑定LuaDB
+```
+
 传入 `db.TYPE_STREAM[index]` 可创建存储空间，如 `index` 为负数，则不填充占位符、
 ```lua
 data:set('io', db.TYPE_STREAM[8])
@@ -225,31 +231,31 @@ h:close()
 - `TYPE_DB` 库类型
 - `TYPE_ID` 指针类型
 - `TYPE_ADDR` 地址类型
-- `TYPE_STREAM` 流类型
+- db-stream
+  + `TYPE_STREAM` 流类型
 
 ## 方法
-- LuaDB
-  + `db.open` 打开数据库
-  + `db:reset` 重置数据库
-  + `db:id` 成员id
-  + `db:addr` 成员地址
-  + `db:load_id` 加载成员id
-  + `db:set` 存储数据
-  + `db:get` 读取数据
-  + `db:del` 删除数据
-  + `db:has` 成员是否存在
-  + `db:fset` 写入二进制数据
-  + `db:fget` 读取二进制数据
-  + `db:each` 遍历成员
-  + `db:stream` 打开流
-  + `db:close` 关闭数据库
-  + `db:apply` 批量存储数据
-  + `db:tidy` 整理碎片表
-  + db-pack
-    - `db:input` 导入表单
-    - `db:output` 导出表单
-- Stream
-  + `stream:length` 空间长度
-  + `stream:seek` 移动流指针
-  + `stream:write` 写入数据
-  + `stream:read` 读取数据
++ `db.open` 打开数据库
++ `db:reset` 重置数据库
++ `db:id` 成员id
++ `db:addr` 成员地址
++ `db:load_id` 加载成员id
++ `db:set` 存储数据
++ `db:get` 读取数据
++ `db:del` 删除数据
++ `db:has` 成员是否存在
++ `db:fset` 写入二进制数据
++ `db:fget` 读取二进制数据
++ `db:each` 遍历成员
++ `db:close` 关闭数据库
++ `db:apply` 批量存储数据
++ `db:tidy` 整理碎片表
++ db-pack
+  - `db:input` 导入表单
+  - `db:output` 导出表单
++ db-stream
+  - `db:stream` 打开流
+  - `stream:length` 空间长度
+  - `stream:seek` 移动流指针
+  - `stream:write` 写入数据
+  - `stream:read` 读取数据
