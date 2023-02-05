@@ -61,42 +61,42 @@ local function O(t, f)
         end
         local tp = type(k)
         if tp == 'string' then
-            f:write((pack('Bs2', STRING, k)))
+            f:write((pack('>Bs2', STRING, k)))
         elseif tp == 'number' then
             if math_type(k) == 'integer' then
-                f:write((pack('Bi8', INTEGER, k)))
+                f:write((pack('>Bi8', INTEGER, k)))
             else
-                f:write((pack('Bn', DOUBLE, k)))
+                f:write((pack('>Bn', DOUBLE, k)))
             end
         end
         tp = type(v)
         if tp == 'string' then
-            f:write((pack('Bs4', STRING, v)))
+            f:write((pack('>Bs4', STRING, v)))
         elseif tp == 'number' then
             if math_type(v) == 'integer' then
-                f:write((pack('Bi8', INTEGER, v)))
+                f:write((pack('>Bi8', INTEGER, v)))
             else
-                f:write((pack('Bn', DOUBLE, v)))
+                f:write((pack('>Bn', DOUBLE, v)))
             end
         elseif tp == 'boolean' then
-            f:write((pack('BB', BOOLEAN, v and 1 or 0)))
+            f:write((pack('>BB', BOOLEAN, v and 1 or 0)))
         elseif tp == 'function' then
-            f:write((pack('Bs4', FUNCTION, string_dump(v, true))))
+            f:write((pack('>Bs4', FUNCTION, string_dump(v, true))))
         elseif tp == 'table' then
             local p = v.get_pointer
             if p then
-                f:write((pack('B', DATABASE)))
+                f:write((pack('>B', DATABASE)))
             else
-                f:write((pack('B', TABLE)))
+                f:write((pack('>B', TABLE)))
             end
             O(v, f)
             if p then
-                f:write((pack('B', DATABASE)))
+                f:write((pack('>B', DATABASE)))
             else
-                f:write((pack('B', TABLE)))
+                f:write((pack('>B', TABLE)))
             end
         else
-            f:write((pack('B', NIL)))
+            f:write((pack('>B', NIL)))
         end
     end
 end
@@ -123,13 +123,13 @@ function M:input(f)
         local pop, pass = stack[#stack] or sf
         local tp, k = f:read(1)
         if not tp then break end
-        tp = unpack('B', tp)
+        tp = unpack('>B', tp)
         if tp == INTEGER then
-            k = unpack('i8', f:read(8))
+            k = unpack('>i8', f:read(8))
         elseif tp == DOUBLE then
-            k = unpack('n', f:read(8))
+            k = unpack('>n', f:read(8))
         elseif tp == STRING then
-            k = unpack('I2', f:read(2))
+            k = unpack('>I2', f:read(2))
             k = f:read(k)
         else
             stack[#stack] = nil
@@ -152,18 +152,18 @@ function M:input(f)
         end
         if not pass then
             local tp, v, is = f:read(1)
-            tp = unpack('B', tp)
+            tp = unpack('>B', tp)
             if tp == STRING then
-                v = unpack('I', f:read(4))
+                v = unpack('>I', f:read(4))
                 v = f:read(v)
             elseif tp == INTEGER then
-                v = unpack('i8', f:read(8))
+                v = unpack('>i8', f:read(8))
             elseif tp == DOUBLE then
-                v = unpack('n', f:read(8))
+                v = unpack('>n', f:read(8))
             elseif tp == BOOLEAN then
-                v = unpack('B', f:read(1)) == 1
+                v = unpack('>B', f:read(1)) == 1
             elseif tp == FUNCTION then
-                v = unpack('I', f:read(4))
+                v = unpack('>I', f:read(4))
                 v = load(f:read(v))
             elseif tp == TABLE then
                 local t = {}
