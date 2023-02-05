@@ -8,8 +8,8 @@ local super
 ---@private
 ---绑定LuaDB主模块
 function M:bind(db)
-    assert(db.ver, _NAME .. '::请使用LuaDB 3.0以上版本！')
-    assert(db.ver >= 30, _NAME .. '::请使用LuaDB 3.0以上版本！')
+    assert(db.ver, _NAME .. '::请使用LuaDB 3.2以上版本！')
+    assert(db.ver >= 32, _NAME .. '::请使用LuaDB 3.2以上版本！')
     self.bind = nil
     if not db.super then
         super = {}
@@ -57,21 +57,7 @@ local function O(t, f)
     for k, v in e, t do
         if is then
             v = t:get(k)
-            local name = k.name
-            local n = tonumber(name)
-            if n then
-                if n > 0 then
-                    local block_size = block_size
-                    local addr_size = addr_size
-                    local hash_code = (n % block_size) + 1
-                    block_size = block_size * 2 * addr_size
-                    hash_code = hash_code * 2 * addr_size
-                    if k.pointer == hash_code then
-                        name = n
-                    end
-                end
-            end
-            k = name
+            k = t:real_name(k)
         end
         local tp = type(k)
         if tp == 'string' then

@@ -8,7 +8,7 @@ local _NAME = 'db-stream'
 ---@type LuaDB
 local super
 ---@class LUADB_STREAM
----@field [1] integer
+---@field [1] integer 空间长度
 ---@field __index function
 ---@class Stream
 ---@field private s integer

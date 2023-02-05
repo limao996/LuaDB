@@ -2,6 +2,9 @@
 基于 Lua 的高性能本地 kv 数据库 *`(lua >= 5.3)`*
 
 ## 更新内容
+- **`3.2.0`**（2023-02-05)
+  + 新增 `db-query` 扩展
+  + 修复若干 bug
 - **`3.1.1`**（2023-02-04)
   + `stream` 方法改为扩展模块
 - **`3.1.0`**（2023-01-26)
@@ -212,31 +215,135 @@ local g = db.open({
 g:output('assets/g.bin') -- 导出数据
 g:close()
 
-local h = db.open({
-    path = 'assets/h.db',
-    can_each = true
-})
+local h = db.open('assets/h.db')
 h:input('assets/g.bin') -- 导入数据
 h:close()
 ```
 
+## 十三、联合查询
+> tips: 该功能需绑定 `db-query` 扩展
+```lua
+local db = require 'db' -- 导入LuaDB
+require 'db-query':bind(db) -- 导入扩展模块并绑定LuaDB
+db.Exp:bind(_G) -- 绑定表达式到环境
+```
+- **`db:query`** 打开查询对象 
+- **`query:key`** 过滤 key
+- **`query:value`** 过滤 value
+- **`query:find`** 迭代查询
+- **`query:findone`** 查询单条
+- **`query:map`** 查询并返回数组
+- **`query:reset`** 重置位置
+> 该模块查询返回 `addr` 对象，过滤值将使之获得 `value` 属性
+```lua
+local f = db.open { -- 打开数据库
+    path = 'assets/f.db',
+    can_each = true
+}
+--打开查询对象
+local fq = f:query()
+-- 查询单条
+fq:findone()
+-- 迭代查询50条
+for o in fq:find(50) do end
+-- 迭代查询剩余全部
+for o in fq:find() do end
+-- 重置进度
+fq:reset()
+-- 查询50条 返回数组
+fq:map(50)
+-- 查询剩余全部 返回数组
+fq:map()
+```
+- **`db.Exp`** 表达式
+- **`Exp.EQ`** 等于
+- **`Exp.NE`** 不等于
+- **`Exp.LT`** 小于
+- **`Exp.LTE`** 小于等于
+- **`Exp.GT`** 大于
+- **`Exp.GTE`** 大于等于
+- **`Exp.DB`** 匹配子数据库
+- **`Exp.ALL`** 常量 匹配全部
+- **`Exp.SIZE`** 表或字符串大小
+- **`Exp.TABLE`** 匹配 table 
+- **`Exp.TYPE`** 常量表 匹配类型
+- **`Exp.NOT`** 逻辑 非
+- **`Exp.AND`** 逻辑 且
+- **`Exp.OR`** 逻辑 或
+- **`Exp.REQ`** 正则匹配
+- **`Exp.IN`** 属于
+- **`Exp.NIN`** 不属于
+- **`Exp.RANGE`** 范围
+- **`Exp.CONTAIN`** 包含
+- **`Exp.NO_CONTAIN`** 不包含
+```lua
+--打开查询对象
+f:query()
+    :key(CONTAIN('a')) -- 包含字符串 "a"
+    :value(RANGE(0, 100)) -- 匹配范围 0-100
+    :map() -- 返回数组
+```
+```lua
+f:query()
+    :value(
+        AND { -- 逻辑且
+            TYPE.STRING, -- 匹配字符串类型
+            REQ '^a', -- 正则匹配开头为a的字符串
+            OR { -- 逻辑或
+                IN { 'a', 'b', 'c' }, -- 匹配属于其中的值
+                IN 'abcdefg', -- 匹配属于其中的字符串
+                SIZE(LTE(3)) -- 匹配长度小于等于3的字符串或表
+            }
+        }
+    )
+    :map()
+```
+```lua
+f:query()
+    :value(
+        DB { -- 匹配 子数据库
+            a = 1, b = 'b', -- 精确匹配
+            [ALL] = NE(nil), -- 匹配所有成员 不等于nil
+            c = TABLE(SIZE(5)) -- 匹配table大小为5
+            -- 参数2为true 满足其中一个条件即通过
+            -- 反之为false，不满足其中一个即不通过 默认为false
+            -- TABLE表达式与DB表达式用法相同
+        }
+    )
+    :map()
+```
+```lua
+-- 自定义表达式
+function BEGIN(s)
+    return function(v)
+        --- 限制类型为 string
+        if not TYPE.STRING(v) then return false end
+        --匹配开头
+        return v:sub(1, #s) == s
+    end
+end
 
-## 常量
-- `BIT_16`  地址16位
-- `BIT_24`  地址24位
-- `BIT_32`  地址32位
-- `BIT_48`  地址48位
-- `BIT_64`  地址64位
-- `BYTE_LE` 小端
-- `BYTE_BE` 大端
-- `BYTE_AUTO` 跟随系统
-- `TYPE_DB` 库类型
-- `TYPE_ID` 指针类型
-- `TYPE_ADDR` 地址类型
-- db-stream
-  + `TYPE_STREAM` 流类型
+f:query()
+    :value(BEGIN('exp'))
+    :map()
+```
 
-## 方法
+## 十四、常量
++ `BIT_16`  地址16位
++ `BIT_24`  地址24位
++ `BIT_32`  地址32位
++ `BIT_48`  地址48位
++ `BIT_64`  地址64位
++ `BYTE_LE` 小端
++ `BYTE_BE` 大端
++ `BYTE_AUTO` 跟随系统
++ `TYPE_DB` 库类型
++ `TYPE_ID` 指针类型
++ `TYPE_ADDR` 地址类型
++ db-stream
+  - `TYPE_STREAM` 流类型
+
+## 十五、方法
 + `db.open` 打开数据库
 + `db:reset` 重置数据库
 + `db:id` 成员id
@@ -252,6 +359,7 @@ h:close()
 + `db:close` 关闭数据库
 + `db:apply` 批量存储数据
 + `db:tidy` 整理碎片表
++ `db:real_name` 成员真实名称
 + db-pack
   - `db:input` 导入表单
   - `db:output` 导出表单
@@ -261,3 +369,32 @@ h:close()
   - `stream:seek` 移动流指针
   - `stream:write` 写入数据
   - `stream:read` 读取数据
++ db-query
+  - `db:query` 打开查询对象 
+  - `query:key` 过滤 key
+  - `query:value` 过滤 value
+  - `query:find` 迭代查询
+  - `query:findone` 查询单条
+  - `query:map` 查询并返回数组
+  - `query:reset` 重置位置
+  - `query.Exp` 表达式
+  - `Exp.EQ` 等于
+  - `Exp.NE` 不等于
+  - `Exp.LT` 小于
+  - `Exp.LTE` 小于等于
+  - `Exp.GT` 大于
+  - `Exp.GTE` 大于等于
+  - `Exp.DB` 匹配子数据库
+  - `Exp.ALL` 常量 匹配全部
+  - `Exp.SIZE` 表或字符串大小
+  - `Exp.TABLE` 匹配 table 
+  - `Exp.TYPE` 常量表 匹配类型
+  - `Exp.NOT` 逻辑 非
+  - `Exp.AND` 逻辑 且
+  - `Exp.OR` 逻辑 或
+  - `Exp.REQ` 正则匹配
+  - `Exp.IN` 属于
+  - `Exp.NIN` 不属于
+  - `Exp.RANGE` 范围
+  - `Exp.CONTAIN` 包含
+  - `Exp.NO_CONTAIN` 不包含

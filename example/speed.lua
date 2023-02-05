@@ -198,6 +198,31 @@ test('each: ', b - a)
 
 
 
+print('############ db-query ############')
+require 'db-query':bind(db)
+db.Exp:bind(_G)
+
+local spq = sp:query()
+    :key(TYPE.STRING)
+    :value(
+        AND {
+            TYPE.STRING,
+            REQ '^a',
+            OR {
+                IN { 'a', 'b', 'c' },
+                IN 'abcdefg',
+                SIZE(LTE(3))
+            }
+        }
+    )
+
+local a = os.clock()
+for o in spq:find() do end
+local b = os.clock()
+test('query: ', b - a)
+
+
+
 print('############ db-pack ############')
 require 'db-pack':bind(db)
 

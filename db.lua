@@ -22,7 +22,7 @@
 ---@field TYPE_ID LUADB_ID 成员指针
 ---@field TYPE_ADDR LUADB_ADDR 成员地址
 local db = {
-    ver = 31,
+    ver = 32,
     BIT_16 = 2,
     BIT_24 = 3,
     BIT_32 = 4,
@@ -37,11 +37,11 @@ local db = {
 }
 
 ---@class LUADB_ADDR
----@field pointer integer
----@field addr integer
----@field key_size integer
----@field key string
----@field name string
+---@field pointer integer 指针地址
+---@field addr integer 成员地址
+---@field key_size integer key长度
+---@field key string key
+---@field name string 成员名称
 
 ---@class LUADB_ID: LUADB_ADDR
 
@@ -50,8 +50,8 @@ local db = {
 
 -- global转local
 local pack, unpack = string.pack, string.unpack
-local type, pairs, tostring, setmetatable, getmetatable, error, assert, load, next =
-type, pairs, tostring, setmetatable, getmetatable, error, assert, load, next
+local type, pairs, tostring, setmetatable, getmetatable, error, assert, load, next, tonumber =
+type, pairs, tostring, setmetatable, getmetatable, error, assert, load, next, tonumber
 local math_type, string_dump, table_concat, string_byte, table_unpack, table_insert =
 math.type, string.dump, table.concat, string.byte, table.unpack, table.insert
 
@@ -309,7 +309,7 @@ end
 
 --- 解包数据
 ---@private
----@param addr 解包地址
+---@param addr integer 解包地址
 ---@return any
 function db:unpack(addr)
     -- 申明变量
@@ -485,7 +485,7 @@ end
 
 --- 扫描碎片
 ---@private
----@param size 空间大小
+---@param size integer 空间大小
 ---@return integer
 function db:scan_gc(size)
     -- 申明变量
@@ -513,8 +513,8 @@ end
 
 --- 标记碎片
 ---@private
----@param s0 碎片头
----@param e0 碎片尾
+---@param s0 integer 碎片头
+---@param e0 integer 碎片尾
 ---@return LuaDB
 function db:add_gc(s0, e0)
     -- 申明变量
@@ -571,8 +571,8 @@ end
 
 --- 检查key类型并调用
 ---@private
----@param k any|LUADB_ID|LUADB_ADDR
----@return integer,integer,integer
+---@param k any|LUADB_ID|LUADB_ADDR 成员身份
+---@return integer,integer,integer,string,LUADB_ADDR
 function db:check_key(k)
     -- 处理成员指针和地址
     local p = getmetatable(k)
@@ -628,8 +628,8 @@ function db:add_next(po)
 end
 
 --- 写入数据
----@param k any|LUADB_ID|LUADB_ADDR
----@param v any|LUADB_DB|LUADB_STREAM
+---@param k any|LUADB_ID|LUADB_ADDR 成员身份
+---@param v any|LUADB_DB 值
 ---@return LuaDB
 function db:set(k, v)
     -- 申明变量
@@ -711,7 +711,7 @@ function db:set(k, v)
 end
 
 ---写入多条数据
----@param args table
+---@param args table 数据表
 ---@return LuaDB
 function db:apply(args)
     for k, v in pairs(args) do
@@ -814,6 +814,19 @@ function db:each()
     end
 end
 
+--- 真实成员名称
+---@param o LUADB_ID|LUADB_ADDR 成员对象
+---@return LUADB_ID|LUADB_ADDR
+function db:real_name(o)
+    local name = o.name
+    local n = tonumber(name)
+    if not n then return name end
+    if self:check_key(n) == o.pointer then
+        name = n
+    end
+    return name
+end
+
 --- 关闭数据库
 ---@return LuaDB
 function db:close()
@@ -827,6 +840,11 @@ end
 ---@private
 function db.TYPE_DB:__call(t)
     return setmetatable(t, self)
+end
+
+---@private
+function db:__tostring()
+    return string.format('LuaDB: %s', self.path)
 end
 
 ---@private
