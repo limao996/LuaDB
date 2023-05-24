@@ -7,7 +7,7 @@ local d = db.open({
 
 d:set('a', {
     1, 2, 3
-}) -- 存储table表单，具体特性类似json
+}) -- 存储table表单，类似json
 local a = d:get('a')
 print(a[1]) -- 1
 

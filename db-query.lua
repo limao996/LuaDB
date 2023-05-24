@@ -13,8 +13,8 @@ local super
 ---@field private vf Query_EXP
 ---@field Exp table 表达式
 local query = { Exp = {} }
-local type, pairs, setmetatable, getmetatable, assert, ipairs =
-type, pairs, setmetatable, getmetatable, assert, ipairs
+local type, pairs, setmetatable, getmetatable, assert, ipairs, next =
+    type, pairs, setmetatable, getmetatable, assert, ipairs, next
 
 ---@private
 ---绑定LuaDB主模块

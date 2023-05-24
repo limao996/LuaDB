@@ -2,6 +2,8 @@
 基于 Lua 的高性能本地 kv 数据库 *`(lua >= 5.3)`*
 
 ## 更新内容
+- **`3.2.1`**（2023-05-24)
+  + 新增 `db-type` 扩展
 - **`3.2.0`**（2023-02-05)
   + 新增 `db-query` 扩展
   + 修复若干 bug
@@ -328,7 +330,21 @@ f:query()
     :map()
 ```
 
-## 十四、常量
+## 十四、类型细分
+> tips: 该功能需绑定 `db-type` 扩展
+```lua
+local db = require 'db' -- 导入LuaDB
+require 'db-type':bind(db) -- 导入扩展模块并绑定LuaDB
+```
+> 该模块重载了所有数据类型，成倍减少空间占用，且新增了 `pointer` 与 `addr` 类型
+```lua
+-- 保存指针
+data:set('pointer', data:id('a'))
+-- 保存地址
+data:set('addr', data:addr('b'))
+```
+
+## 十五、常量
 + `BIT_16`  地址16位
 + `BIT_24`  地址24位
 + `BIT_32`  地址32位
@@ -343,7 +359,7 @@ f:query()
 + db-stream
   - `TYPE_STREAM` 流类型
 
-## 十五、方法
+## 十六、方法
 + `db.open` 打开数据库
 + `db:reset` 重置数据库
 + `db:id` 成员id

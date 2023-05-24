@@ -51,9 +51,9 @@ local db = {
 -- global转local
 local pack, unpack = string.pack, string.unpack
 local type, pairs, tostring, setmetatable, getmetatable, error, assert, load, next, tonumber =
-type, pairs, tostring, setmetatable, getmetatable, error, assert, load, next, tonumber
+    type, pairs, tostring, setmetatable, getmetatable, error, assert, load, next, tonumber
 local math_type, string_dump, table_concat, string_byte, table_unpack, table_insert =
-math.type, string.dump, table.concat, string.byte, table.unpack, table.insert
+    math.type, string.dump, table.concat, string.byte, table.unpack, table.insert
 
 
 -- 格式串模板
@@ -209,8 +209,8 @@ function db.open(config)
     -- 将配置表作为db对象
     local self = config
     setmetatable(self, db) -- 设置元表
-    local F = {} -- 创建格式串
-    for i = 1, #_F do -- 导入模板
+    local F = {}           -- 创建格式串
+    for i = 1, #_F do      -- 导入模板
         -- 设置地址大小
         local v = _F[i]
         local _v = v:gsub('A', 'I' .. self.addr_size)
@@ -412,7 +412,7 @@ function db:get_pointer(key)
     local level, block_size = 0, self.block_size
     local addr_size = self.addr_size
     local hash_code = (hash(key) % block_size) + 1 -- 获取hash值
-    key = tostring(key) -- key转字符串
+    key = tostring(key)                            -- key转字符串
     -- 判断数据库可遍历，即留出next属性的空间
     if self.can_each then
         block_size = block_size * 2
@@ -423,10 +423,10 @@ function db:get_pointer(key)
     -- 计算指针实际位置
     hash_code = hash_code * addr_size
 
-    while true do -- 递归寻址
+    while true do                                        -- 递归寻址
         local pointer = (level * block_size) + hash_code -- 计算指针位置
-        local a, b = self:get_addr(pointer, key) -- 获取地址
-        if a then -- 存在即返回，否则下降深度
+        local a, b = self:get_addr(pointer, key)         -- 获取地址
+        if a then                                        -- 存在即返回，否则下降深度
             return pointer, a, b, key
         end
         level = level + 1 -- 下降深度
@@ -449,20 +449,20 @@ function db:get_addr(pointer, key)
     local addr = fm:read(addr_size)
     if addr then -- 存在即解包地址
         addr = unpack(F.A, addr)
-    else -- 否则定义为0
+    else         -- 否则定义为0
         addr = 0
     end
     -- 地址为0，即成员不存在，返回等待创建
     if addr == 0 then
         return 0
-    else -- 否则判断key
+    else                     -- 否则判断key
         fw:seek('set', addr) -- 定位到地址
         local n = fw:read(8) -- 读取key长度
-        n = unpack(F.T, n) -- 解包
+        n = unpack(F.T, n)   -- 解包
         local s = fw:read(n) -- 读取key
-        if s == key then -- 相同即返回，等待操作成员
+        if s == key then     -- 相同即返回，等待操作成员
             return addr, n
-        end -- 否则发生碰撞，继续递归
+        end                  -- 否则发生碰撞，继续递归
     end
 end
 

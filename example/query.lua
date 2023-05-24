@@ -1,10 +1,11 @@
-local db = require 'db' -- 导入LuaDB主类
+local db = require 'db'     -- 导入LuaDB主类
 require 'db-query':bind(db) -- 绑定扩展模块
-db.Exp:bind(_G) -- 绑定表达式到环境
+db.Exp:bind(_G)             -- 绑定表达式到环境
 
-local f = db.open({ -- 打开数据库
-    path = 'assets/f.db',
-    can_each = true -- 开启遍历支持
+-- 打开数据库
+local f = db.open({
+    path = 'assets/f.db', -- 数据库路径
+    can_each = true       -- 开启遍历支持
 })
 
 f:apply { -- 写入数据
@@ -25,16 +26,16 @@ f:apply { -- 写入数据
     }
 }
 
-local fq = f:query()-- 查询数据
-    :value(-- 过滤值
-        DB { -- 匹配数据库
+local fq = f:query()         -- 查询数据
+    :value(                  -- 过滤值
+        DB {                 -- 匹配数据库
             a = RANGE(1, 5), -- 匹配1~5范围数值
-            d = OR { -- 逻辑或
-                DB { -- 匹配数据库
-                    a = 10 -- 精确匹配
+            d = OR {         -- 逻辑或
+                DB {         -- 匹配数据库
+                    a = 10   -- 精确匹配
                 },
-                TABLE { -- 匹配表单
-                    b = 8 -- 精确匹配
+                TABLE {      -- 匹配表单
+                    b = 8    -- 精确匹配
                 },
             }
         }
