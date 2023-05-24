@@ -44,7 +44,7 @@ local data = db.open({
     block_size = 4096, -- 簇大小，适当调整可减少hash碰撞
     can_each = false, -- 遍历支持
     addr_size = db.BIT_32, -- 地址长度
-    byte_order = db.BYTE_AUTO -- 二进制字节序
+    byte_order = db.BYTE_AUTO -- 字节序
 })
 ```
 
