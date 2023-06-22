@@ -1,5 +1,6 @@
 -- 性能测试
 local db = require 'db'
+-- require 'db-type':bind(db)
 
 local function test(log, time)
     local time = math.ceil(10000 / time)

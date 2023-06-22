@@ -28,7 +28,6 @@ function M:bind(db)
 end
 
 --- 类型常量
-local NIL = 0
 local STRING = 1
 local INTEGER = 2
 local DOUBLE = 3
@@ -38,7 +37,7 @@ local TABLE = 6
 local DATABASE = 7
 
 local pack, unpack = string.pack, string.unpack
-local next, tonumber, type, assert, load = next, tonumber, type, assert, load
+local next, type, assert, load = next, type, assert, load
 local math_type, string_dump = math.type, string.dump
 
 --- 导出数据
@@ -95,8 +94,6 @@ local function O(t, f)
             else
                 f:write((pack('>B', TABLE)))
             end
-        else
-            f:write((pack('>B', NIL)))
         end
     end
 end
@@ -122,6 +119,7 @@ function M:input(f)
     while true do
         local pop, pass = stack[#stack] or sf
         local tp, k = f:read(1)
+
         if not tp then break end
         tp = unpack('>B', tp)
         if tp == INTEGER then

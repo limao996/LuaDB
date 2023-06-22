@@ -2,6 +2,11 @@
 基于 Lua 的高性能本地 kv 数据库 *`(lua >= 5.3)`*
 
 ## 更新内容
+- **`3.2.2`**（2023-06-22)
+  + 新增 `flush` 方法
+  + 新增 `no_flush` 属性
+  + 修复 `db-type` 扩展的致命性 bug
+  + 新增数据库版本校验
 - **`3.2.1`**（2023-05-24)
   + 新增 `db-type` 扩展
 - **`3.2.0`**（2023-02-05)
@@ -46,6 +51,17 @@ local data = db.open({
     addr_size = db.BIT_32, -- 地址长度
     byte_order = db.BYTE_AUTO -- 字节序
 })
+```
+> 缓冲模式
+> 
+> 大幅度提升效率，但需要手动调用 `flush` 方法写入缓冲
+``` lua
+local data = db.open({
+    path = 'data.db',
+    no_flush = false, -- 关闭无缓冲模式
+})
+
+data:flush() -- 写入缓冲
 ```
 
 ## 三、存储数据
@@ -327,7 +343,7 @@ f:query()
     :map()
 ```
 
-## 十四、类型细分
+## 十四、类型重载
 > tips: 该功能需绑定 `db-type` 扩展
 ```lua
 local db = require 'db' -- 导入LuaDB

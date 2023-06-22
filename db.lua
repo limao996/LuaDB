@@ -9,6 +9,7 @@
 ---@field block_size integer 簇大小
 ---@field addr_size integer 地址长度
 ---@field can_each boolean 遍历支持
+---@field no_flush boolean 无缓冲
 ---@field ver integer 数据库版本
 ---@field BIT_16 integer 地址16位
 ---@field BIT_24 integer 地址24位
@@ -63,7 +64,8 @@ local _C = { -- 配置模板
     block_size = 4096,
     can_each = false,
     addr_size = db.BIT_32,
-    byte_order = db.BYTE_AUTO
+    byte_order = db.BYTE_AUTO,
+    no_flush = true
 }
 
 ---序列化类型
@@ -216,7 +218,7 @@ function db.open(config)
         local _v = v:gsub('A', 'I' .. self.addr_size)
         F[v] = self.byte_order .. _v -- 添加字节序
     end
-    self.F = F -- 将格式串添加到self
+    self.F = F                       -- 将格式串添加到self
     -- 打开文件对象
     local f = io.open(self.path)
     if f then -- 存在即加载
@@ -243,13 +245,16 @@ end
 ---@private
 ---@return LuaDB
 function db:init()
-    -- 打开文件对象并设置缓冲模式
+    -- 打开文件对象
     self.fw = io.open(self.path, 'r+b')
-    self.fw:setvbuf('no')
     self.fg = io.open(self.path .. '.gc', 'r+b')
-    self.fg:setvbuf('no')
     self.fm = io.open(self.path .. '.map', 'r+b')
-    self.fm:setvbuf('no')
+    -- 无缓冲模式
+    if self.no_flush then
+        self.fw:setvbuf('no')
+        self.fg:setvbuf('no')
+        self.fm:setvbuf('no')
+    end
     -- 校验文件标识，并赋值版本号
     local s = self.fw:read(6)
     assert(s, 'LuaDB::数据格式错误！')
@@ -257,6 +262,7 @@ function db:init()
     local tag, ver = unpack(self.F.c5B, s)
     self.ver = ver
     assert(tag == 'LuaDB', 'LuaDB::数据格式错误！')
+    assert(ver == db.ver, 'LuaDB::数据库版本不兼容！')
     return self
 end
 
@@ -825,6 +831,15 @@ function db:real_name(o)
         name = n
     end
     return name
+end
+
+--- 写入缓冲
+---@return LuaDB
+function db:flush()
+    self.fw:flush()
+    self.fg:flush()
+    self.fm:flush()
+    return self
 end
 
 --- 关闭数据库

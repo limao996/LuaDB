@@ -6,7 +6,7 @@ local _NAME = 'db-type'
 local super
 
 -- global转local
-local pack, unpack = string.pack, string.unpack
+local pack, unpack, tostring = string.pack, string.unpack, tostring
 local type, pairs, setmetatable, getmetatable, error, assert, load, next =
     type, pairs, setmetatable, getmetatable, error, assert, load, next
 local math_type, string_dump, table_concat, table_insert =
@@ -290,6 +290,132 @@ function M:unpack(addr)
         local o = { pointer = po, addr = addr, key_size = size, key = key, name = name }
         return setmetatable(o, M.TYPE_ADDR)
     end
+end
+
+--- 测量数据
+---@private
+---@param tp integer 数据类型
+---@return integer 长度
+function M:packsize(tp)
+    -- 申明变量
+    local F = self.F
+    local fw = self.fw
+    local byte_order = self.byte_order
+    -- 判断类型值并解包
+    if tp >= 10 and tp < 20 then
+        local b = tp - 10
+        local n = unpack(byte_order .. 'I' .. b, fw:read(b))
+        return b + n
+    elseif tp == 20 then
+        return 8
+    elseif tp >= 210 and tp < 220 then
+        local b = tp - 210
+        return b
+    elseif tp >= 220 and tp < 230 then
+        local b = tp - 220
+        return b
+    elseif tp >= 30 and tp < 40 then
+        return 0
+    elseif tp == 4 then
+        local n = unpack(F.T, fw:read(8))
+        return 8 + n
+    elseif tp == 5 then
+        return self.addr_size * 2
+    elseif tp == 6 then
+        local n = unpack(F.T, fw:read(8))
+        return 8 + n
+    elseif tp == 70 then
+        local addr_size = self.addr_size
+        fw:seek('cur', addr_size)
+        local n1 = unpack(F.T, fw:read(8))
+        fw:seek('cur', n1)
+        local n2 = unpack(F.T, fw:read(8))
+
+        return addr_size + 16 + n1 + n2
+    elseif tp == 71 then
+        local addr_size = self.addr_size
+        fw:seek('cur', (addr_size * 2) + 8)
+        local n1 = unpack(F.T, fw:read(8))
+        fw:seek('cur', n1)
+        local n2 = unpack(F.T, fw:read(8))
+
+        return (addr_size * 2) + 24 + n1 + n2
+    end
+    return 0
+end
+
+--- 写入数据
+---@param k any|LUADB_ID|LUADB_ADDR 成员身份
+---@param v any|LUADB_DB 值
+---@return LuaDB
+function M:set(k, v)
+    -- 申明变量
+    local F = self.F
+    local _v = v
+    local fw, fm = self.fw, self.fm
+    -- 打包数据
+    local tp, len, v = self:pack(v)
+    -- 得到成员属性
+    local po, addr, size, k, ck = self:check_key(k)
+    -- key转换类型，用于判断是否碰撞
+    k = tostring(k)
+    -- 地址不存在，即创建新地址
+    if addr == 0 then
+        size = #k
+        addr = self:scan_gc(len + 8 + size + 1)
+        if addr == 0 then
+            addr = self:new_addr(po)
+        else
+            fm:seek('set', po)
+            -- 将指针指向数据尾
+            fm:write(pack(F.A, addr))
+        end
+        self:add_next(po)
+    else
+        -- 读取原本存储的数据类型和长度
+        fw:seek('set', addr + 8 + size)
+        local tp = unpack(F.B, fw:read(1))
+        local n = self:packsize(tp)
+
+        -- 处理成员原本空间
+        if n < len then -- 空间不够，标记碎片，申请新的空间
+            self:add_gc(addr, addr + 8 + size + 1 + n)
+            addr = self:scan_gc(len + 8 + size + 1)
+            if addr == 0 then
+                addr = self:new_addr(po)
+            else
+                fm:seek('set', po)
+                -- 将指针指向数据尾
+                fm:write(pack(F.A, addr))
+            end
+            if ck then
+                ck.addr = addr
+            end
+        elseif n > len then -- 空间过大，截断并标记多余空间
+            self:add_gc(addr + len + 8 + size + 1 + 1, addr + 8 + size + 1 + n)
+        end
+    end
+    -- 写入数据
+    fw:seek('set', addr)
+    fw:write(pack(F.sB, k, tp))
+    fw:write(v)
+    -- 处理子数据库的初始成员
+    if tp == 5 then
+        local v0
+        for k, v in pairs(_v) do
+            if k ~= '__call' then
+                if not v0 then
+                    v0 = setmetatable({}, M)
+                    for k, v in pairs(self) do
+                        v0[k] = v
+                    end
+                    v0.node_id = addr + 8 + size + 1
+                end
+                v0:set(k, v)
+            end
+        end
+    end
+    return self
 end
 
 return M
