@@ -8,7 +8,7 @@ local b = db.open({
     can_each = false,          -- 遍历支持
     addr_size = db.BIT_32,     -- 地址长度
     byte_order = db.BYTE_AUTO, -- 二进制字节序
-    no_flush = false           -- 无缓冲
+    buffer_size = 4096         -- 无缓冲
 })
 
 a:set(1, 123)
