@@ -3,7 +3,7 @@
 基于 Lua 的高性能本地 kv 数据库 *`(lua >= 5.3)`*
 
 [![license](https://img.shields.io/github/license/limao996/LuaDB.svg)](LICENSE)
-[![releases](https://img.shields.io/github/v/tag/limao996/LuaDB?color=C71D23&label=releases&logo=github)](https://gitee.com/AideLua/AideLua/releases)
+[![releases](https://img.shields.io/github/v/tag/limao996/LuaDB?color=C71D23&label=releases&logo=github)](https://github.com/limao996/LuaDB/releases)
 ![](https://img.shields.io/github/last-commit/limao996/LuaDB.svg)
 
 [![Github repository](https://img.shields.io/badge/Github-repository-0969DA?logo=github)](https://github.com/limao996/LuaDB)
