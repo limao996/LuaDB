@@ -11,6 +11,10 @@
 
 ## 更新内容
 
+- **`3.2.4`**（2023-06-28)
+    + 修改 `tostring` 返回值
+    + 整理部分代码
+    + 修复若干 bug
 - **`3.2.3`**（2023-06-26)
     + 删除 `no_flush` 属性
     + 新增 `buffer_size` 属性
@@ -261,7 +265,7 @@ print(data:get(a4)) -- 124
 data:close()
 ```
 
-## 十二、打包数据
+## 十二、数据归档
 
 > tips: 该功能需绑定 `db-pack` 扩展
 
@@ -270,21 +274,25 @@ local db = require 'db' -- 导入LuaDB
 require 'db-pack':bind(db) -- 导入扩展模块并绑定LuaDB
 ```
 
-- **`input`** 导入表单
-- **`output`** 导出表单
+- **`input`** 解档
+- **`output`** 归档
 
 ```lua
 local g = db.open({
 	path = 'assets/g.db',
 	can_each = true
 })
-g:output('assets/g.bin') -- 导出数据
+g:output('assets/g.bin') -- 归档数据
 g:close()
 
 local h = db.open('assets/h.db')
-h:input('assets/g.bin') -- 导入数据
+h:input('assets/g.bin') -- 解档数据
 h:close()
 ```
+
+> tips: 该扩展支持 id 类型，但它们是不可靠的
+>
+> 只有在空数据库中解档才能保证可靠性，除非能够保证节点的 level 有效且未占用
 
 ## 十三、联合查询
 

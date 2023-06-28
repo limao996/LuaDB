@@ -1,9 +1,11 @@
 local db = require 'db'    -- 导入LuaDB
+require 'db-type':bind(db)
 require 'db-pack':bind(db) -- 导入扩展模块并绑定LuaDB
 
-local g = db.open({ -- 打开数据库
+local g = db.open({        -- 打开数据库
     path = 'assets/g.db',
-    can_each = true -- 开启遍历支持
+    can_each = true,       -- 开启遍历支持
+    buffer_size = 8192     -- 8kb缓冲
 })
 
 g:apply { -- 写入多条数据
@@ -17,14 +19,15 @@ g:apply { -- 写入多条数据
     }
 }
 
-g:set('p', g:addr('d'))
+g:set('p', g:id('d'))
 
 g:output('assets/g.bin')
-g:close()           -- 导出数据并关闭数据库
+g:close()              -- 导出数据并关闭数据库
 
-local h = db.open({ -- 打开数据库
+local h = db.open({    -- 打开数据库
     path = 'assets/h.db',
-    can_each = true -- 开启遍历支持
+    can_each = true,   -- 开启遍历支持
+    buffer_size = 8192 -- 8kb缓冲
 })
 
 h:input('assets/g.bin') -- 导入数据
@@ -49,12 +52,12 @@ h:close() -- 关闭数据库
 10	9
 b	1.0
 1	-1
+p	LuaDB @id: 0x430
 6553565535	65535
 a	1
-g	LuaDB: assets/h.db
-f	table: 00000000007C68E0
+g	LuaDB @node: 0xe4
+f	table: 000000000075E470
 e	false
 d	hello
 c	3.14
-p	LuaDB @id: 0x430
 ]]

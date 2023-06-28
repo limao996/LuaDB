@@ -36,6 +36,7 @@ function M:bind(db)
         self[k] = nil
     end
     M = db
+    M.TYPE_DB.code = 5
     return db
 end
 
@@ -47,24 +48,6 @@ local function get_int_size(n)
             return i
         end
     end
-end
-
-local function hash(s)
-    -- 判断为整数，返回整数以减少碰撞
-    if math_type(s) == 'integer' then
-        if s > 0 then
-            return s
-        end
-    end
-    -- 将数值转为字符串处理
-    s = tostring(s)
-    local l = #s
-    local h = l
-    local step = (l >> 5) + 1
-    for i = l, step, -step do
-        h = h ~ ((h << 5) + string_byte(s, i) + (h >> 2))
-    end
-    return h -- 返回hash值
 end
 
 --- 打包数据
@@ -433,6 +416,7 @@ function M:unpack(addr)
             -- 继承对象
             v0[k] = v
         end
+        v0.path = addr
         v0.node_id = addr + 1 -- 设置节点id
         return v0
     elseif tp == 6 then
@@ -520,140 +504,6 @@ function M:packsize(tp)
         return (addr_size * 2) + 24 + n1 + n2
     end
     return 0
-end
-
---- 写入数据
----@param k any|LUADB_ID|LUADB_ADDR 成员身份
----@param v any|LUADB_DB 值
----@return LuaDB
-function M:set(k, v)
-    -- 申明变量
-    local F = self.F
-    local _v = v
-    local fw, fm = self.fw, self.fm
-    -- 打包数据
-    local tp, len, v = self:pack(v)
-    -- 得到成员属性
-    local po, addr, size, k, ck = self:check_key(k)
-    -- key转换类型，用于判断是否碰撞
-    k = tostring(k)
-    -- 地址不存在，即创建新地址
-    if addr == 0 then
-        size = #k
-        addr = self:scan_gc(len + 8 + size + 1)
-        if addr == 0 then
-            addr = self:new_addr(po)
-        else
-            fm:seek('set', po)
-            -- 将指针指向数据尾
-            fm:write(pack(F.A, addr))
-        end
-        self:add_next(po)
-    else
-        -- 读取原本存储的数据类型和长度
-        fw:seek('set', addr + 8 + size)
-        local tp = unpack(F.B, fw:read(1))
-        local n = self:packsize(tp)
-
-        -- 处理成员原本空间
-        if n < len then
-            -- 空间不够，标记碎片，申请新的空间
-            self:add_gc(addr, addr + 8 + size + 1 + n)
-            addr = self:scan_gc(len + 8 + size + 1)
-            if addr == 0 then
-                addr = self:new_addr(po)
-            else
-                fm:seek('set', po)
-                -- 将指针指向数据尾
-                fm:write(pack(F.A, addr))
-            end
-            if ck then
-                ck.addr = addr
-            end
-        elseif n > len then
-            -- 空间过大，截断并标记多余空间
-            self:add_gc(addr + len + 8 + size + 1 + 1, addr + 8 + size + 1 + n)
-        end
-    end
-    -- 写入数据
-    fw:seek('set', addr)
-    fw:write(pack(F.sB, k, tp))
-    fw:write(v)
-    -- 处理子数据库的初始成员
-    if tp == 5 then
-        local v0
-        for k, v in pairs(_v) do
-            if k ~= '__call' then
-                if not v0 then
-                    v0 = setmetatable({}, M)
-                    for k, v in pairs(self) do
-                        v0[k] = v
-                    end
-                    v0.node_id = addr + 8 + size + 1
-                end
-                v0:set(k, v)
-            end
-        end
-    end
-    return self
-end
-
---- 删除成员
----@param k any|LUADB_ID|LUADB_ADDR 成员key
----@return LuaDB
-function M:del(k)
-    local _k = k
-    -- 申明变量
-    local F = self.F
-    local fw, fm = self.fw, self.fm
-    -- 得到成员属性
-    local po, addr, size, k, ck, level = self:check_key(k)
-    -- key转换类型，用于判断是否碰撞
-    k = tostring(k)
-
-    -- 读取原本存储的数据类型和长度
-    fw:seek('set', addr + 8 + size)
-    local tp = unpack(F.B, fw:read(1))
-    local n = self:packsize(tp)
-
-    self:add_gc(addr, addr + 8 + size + 1 + n)
-
-    -- 定义当前簇深度和簇大小
-    level = level + 1
-    local block_size = self.block_size
-    local addr_size = self.addr_size
-    local hash_code = (hash(_k) % block_size) + 1 -- 获取hash值
-    k = tostring(_k)                              -- key转字符串
-    -- 判断数据库可遍历，即留出next属性的空间
-    if self.can_each then
-        block_size = block_size * 2
-        hash_code = hash_code * 2
-    end
-    -- 计算实际占用空间
-    block_size = block_size * addr_size
-    -- 计算指针实际位置
-    hash_code = hash_code * addr_size
-
-    while true do
-        local po1 = (level * block_size) + hash_code
-        fm:seek('set', po1)
-        local addr1 = fm:read(addr_size)
-        if addr1 then
-            addr1 = unpack(F.A, addr1)
-        else
-            addr1 = 0
-        end
-        local po2 = ((level - 1) * block_size) + hash_code
-        fm:seek('set', po2)
-        fm:write((pack(F.A, addr1)))
-
-        if addr1 == 0 then
-            break
-        end
-        level = level + 1 -- 下降深度
-    end
-
-    return self
 end
 
 return M

@@ -40,7 +40,7 @@ local db = {
     BYTE_AUTO = '=',
     TYPE_ID = {},
     TYPE_ADDR = {},
-    TYPE_DB = {}
+    TYPE_DB = { code = 6 }
 }
 
 ---@class LUADB_ADDR
@@ -360,12 +360,33 @@ function db:unpack(addr)
             -- 继承对象
             v0[k] = v
         end
+        v0.path = addr
         v0.node_id = addr + 1 -- 设置节点id
         return v0
     elseif tp == 7 then
         local n = unpack(F.T, fw:read(8))
         return deserialize(fw:read(n)) -- 反序列化
     end
+end
+
+--- 测量数据
+---@private
+---@param tp number 数据类型
+---@return number 长度
+function db:packsize(tp)
+    -- 申明变量
+    local F = self.F
+    local fw = self.fw
+    if tp == 1 or tp == 5 or tp == 7 then
+        return 8 + unpack(F.T, fw:read(8))
+    elseif tp == 6 then
+        return self.addr_size * 2
+    elseif tp == 2 or tp == 3 then
+        return 8
+    elseif tp == 4 then
+        return 1
+    end
+    return 0
 end
 
 --- 成员指针
@@ -447,7 +468,7 @@ function db:get_pointer(key)
     hash_code = hash_code * addr_size
 
     while true do
-        -- 递归寻址
+        -- 寻址
         local pointer = (level * block_size) + hash_code -- 计算指针位置
         local a, b = self:get_addr(pointer, key)         -- 获取地址
         if a then
@@ -689,18 +710,8 @@ function db:set(k, v)
     else
         -- 读取原本存储的数据类型和长度
         fw:seek('set', addr + 8 + size)
-        local tp, n = unpack(F.B, fw:read(1))
-        if tp == 1 or tp == 5 or tp == 7 then
-            n = 8 + unpack(F.T, fw:read(8))
-        elseif tp == 6 then
-            n = self.addr_size * 2
-        elseif tp == 2 or tp == 3 then
-            n = 8
-        elseif tp == 4 then
-            n = 1
-        else
-            n = 0
-        end
+        local tp = unpack(F.B, fw:read(1))
+        local n = self:packsize(tp)
         -- 处理成员原本空间
         if n < len then
             -- 空间不够，标记碎片，申请新的空间
@@ -726,7 +737,7 @@ function db:set(k, v)
     fw:write(pack(F.sB, k, tp))
     fw:write(v)
     -- 处理子数据库的初始成员
-    if tp == 6 then
+    if tp == db.TYPE_DB.code then
         local v0
         for k, v in pairs(_v) do
             if k ~= '__call' then
@@ -784,19 +795,8 @@ function db:del(k)
 
     -- 读取原本存储的数据类型和长度
     fw:seek('set', addr + 8 + size)
-    local tp, n = unpack(F.B, fw:read(1))
-    if tp == 1 or tp == 5 or tp == 7 then
-        n = 8 + unpack(F.T, fw:read(8))
-    elseif tp == 6 then
-        n = self.addr_size * 2
-    elseif tp == 2 or tp == 3 then
-        n = 8
-    elseif tp == 4 then
-        n = 1
-    else
-        n = 0
-    end
-
+    local tp = unpack(F.B, fw:read(1))
+    local n = self:packsize(tp)
     self:add_gc(addr, addr + 8 + size + 1 + n)
 
     -- 定义当前簇深度和簇大小
@@ -967,7 +967,11 @@ end
 
 ---@private
 function db:__tostring()
-    return string.format('LuaDB: %s', self.path)
+    local path = self.path
+    if type(path) == 'string' then
+        return string.format('LuaDB: %s', self.path)
+    end
+    return string.format('LuaDB @node: 0x%x', self.path)
 end
 
 ---@private

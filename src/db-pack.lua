@@ -126,7 +126,7 @@ local function _unpack(file)
         local name = file:read(n)
         local level = unpack('<B', file:read(1))
         local o = { pointer = po, key = key, name = name, level = level }
-        v = setmetatable(o, super.TYPE_ID)
+        v = setmetatable(o, M.TYPE_ID)
     end
     return tp, v
 end
@@ -348,8 +348,8 @@ function M:input(path)
 
         ::pass::
     end
-    file:close()
     self:apply(node_stack[1])
+    file:close()
     return self
 end
 
