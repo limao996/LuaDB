@@ -21,6 +21,7 @@ local super
 ---@field private p number
 ---@field private len number
 ---@field private fw file
+---@field private addr number
 local stream = {}
 local pack, unpack, packsize = string.pack, string.unpack, string.packsize
 local type, pairs, setmetatable, getmetatable, error, assert =
@@ -33,14 +34,12 @@ function M:bind(db)
     assert(db.ver, _NAME .. '::请使用LuaDB 3.0以上版本！')
     assert(db.ver >= 30, _NAME .. '::请使用LuaDB 3.0以上版本！')
     self.bind = nil
-    if not db.super then
-        super = {}
-        for k, v in pairs(db) do
-            super[k] = v
-        end
-        db.super = super
+
+    super = {}
+    for k, v in pairs(db) do
+        super[k] = v
     end
-    super = db.super
+
     for k, v in pairs(self) do
         db[k] = v
         self[k] = nil
@@ -52,12 +51,43 @@ end
 function M:pack(v)
     if getmetatable(v) == M.TYPE_STREAM then
         -- 判断为流对象，写入空间长度
-        local tp = 1
-        local len = 8 + v[1]
-        v = pack(self.F.T, v[1])
-        return tp, len, v
+        local tp = 80
+        local n = v[1]
+        if n < 0 then
+            n = -n
+            local len = 8 + n
+            v = pack(self.F.T, n)
+            return tp, len, v
+        else
+            v = pack(self.F.T .. 'c' .. n, n, '')
+            return tp, 8 + n, v
+        end
     end
     return super.pack(self, v)
+end
+
+function M:unpack(addr, tp, size)
+    print(tp)
+    if tp == 80 then
+        -- 申明变量
+        local F = self.F
+        local fw = self.fw
+        -- 获取空间长度
+        local n = unpack(F.T, fw:read(8))
+        -- 创建数据流对象
+        local obj = {
+            addr = addr,
+            s = addr + 8 + size + 9,
+            e = addr + 8 + size + 9 + n,
+            p = addr + 8 + size + 9,
+            len = n,
+            fw = fw,
+            __len = stream.size,
+            __index = stream
+        }
+        return setmetatable(obj, stream)
+    end
+    return super.unpack(self, addr, tp, size)
 end
 
 function M:set(k, v)
@@ -68,39 +98,6 @@ function M:set(k, v)
         fw:write('\0')
     end
     return self
-end
-
---- 成员数据流
----@param k any|LUADB_ADDR|LUADB_ID 成员key
----@return Stream
-function M:stream(k)
-    -- 申明变量
-    local F = self.F
-    local fw = self.fw
-    -- 获取成员地址
-    local po, addr, size = self:check_key(k)
-    if addr == 0 then
-        return
-    end
-    -- 过滤不支持的类型
-    fw:seek('set', addr + 8 + size)
-    local tp = unpack(F.B, fw:read(1))
-    if tp ~= 1 then
-        return
-    end
-    -- 获取空间长度
-    local n = unpack(F.T, fw:read(8))
-    -- 创建数据流对象
-    local obj = {
-        s = addr + 8 + size + 9,
-        e = addr + 8 + size + 9 + n,
-        p = addr + 8 + size + 9,
-        len = n,
-        fw = fw,
-        __len = stream.size,
-        __index = stream
-    }
-    return setmetatable(obj, obj)
 end
 
 --- 空间长度
@@ -177,12 +174,16 @@ end
 ---@private
 function M.TYPE_STREAM:__index(k)
     assert(k ~= 0, 'LuaDB::空间长度不可为0！')
-    if k > 0 then
-        return pack('c' .. k, '')
-    end
-    return setmetatable({ -k }, self)
+    return setmetatable({ k }, self)
 end
 
 setmetatable(M.TYPE_STREAM, M.TYPE_STREAM)
+
+stream.__len = stream.size
+stream.__index = stream
+
+function stream:__tostring()
+    return string.format('LuaDB @stream: 0x%x', self.addr)
+end
 
 return M

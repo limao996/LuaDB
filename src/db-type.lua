@@ -23,14 +23,12 @@ function M:bind(db)
     assert(db.ver, _NAME .. '::请使用LuaDB 3.2以上版本！')
     assert(db.ver >= 32, _NAME .. '::请使用LuaDB 3.2以上版本！')
     self.bind = nil
-    if not db.super then
-        super = {}
-        for k, v in pairs(db) do
-            super[k] = v
-        end
-        db.super = super
+
+    super = {}
+    for k, v in pairs(db) do
+        super[k] = v
     end
-    super = db.super
+
     for k, v in pairs(self) do
         db[k] = v
         self[k] = nil
@@ -380,16 +378,14 @@ end
 --- 解包数据
 ---@private
 ---@param addr number 解包地址
+---@param tp number 类型
+---@param size number key长度
 ---@return any|LUADB_ID|LUADB_ADDR
-function M:unpack(addr)
+function M:unpack(addr, tp, size)
     -- 申明变量
     local F = self.F
     local fw = self.fw
     local byte_order = self.byte_order
-    -- 定位到地址
-    fw:seek('set', addr)
-    -- 获取类型值
-    local tp = unpack(F.B, fw:read(1))
     -- 判断类型值并解包
     if tp >= 10 and tp < 20 then
         local b = tp - 10

@@ -11,6 +11,10 @@
 
 ## 更新内容
 
+- **`3.2.5`**（2023-06-29)
+    + 去除 `db-stream` 提供的 `stream` 方法
+    + 修复 `db-stream` 的兼容性问题
+    + 修复若干 bug
 - **`3.2.4`**（2023-06-28)
     + 修改 `tostring` 返回值
     + 整理部分代码
@@ -199,10 +203,11 @@ require 'db-stream':bind(db) -- 导入扩展模块并绑定LuaDB
 data:set('io', db.TYPE_STREAM[8])
 ```
 
-调用 `stream` 方法获取数据流对象
+调用 `get` 方法获取数据流对象
 
 ```lua
-local stream = data:stream('io')
+local stream = data:get('io')
+
 ```
 
 以下为数据流的api
@@ -474,7 +479,6 @@ data:set('addr', data:addr('b'))
 | `db:real_name`   | 成员真实名称   | `db`        |
 | `db:input`       | 导入表单     | `db-pack`   |
 | `db:output`      | 导出表单     | `db-pack`   |
-| `db:stream`      | 打开流      | `db-stream` |
 | `stream:length`  | 空间长度     | `db-stream` |
 | `stream:seek`    | 移动流指针    | `db-stream` |
 | `stream:write`   | 写入数据     | `db-stream` |

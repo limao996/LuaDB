@@ -331,15 +331,13 @@ end
 --- 解包数据
 ---@private
 ---@param addr number 解包地址
+---@param tp number 类型
+---@param size number key长度
 ---@return any
-function db:unpack(addr)
+function db:unpack(addr, tp, size)
     -- 申明变量
     local F = self.F
     local fw = self.fw
-    -- 定位到地址
-    fw:seek('set', addr)
-    -- 获取类型值
-    local tp = unpack(F.B, fw:read(1))
     -- 判断类型值并解包
     if tp == 1 then
         local n = unpack(F.T, fw:read(8))
@@ -769,14 +767,21 @@ end
 ---@param k any|LUADB_ID|LUADB_ADDR 成员key
 ---@return any
 function db:get(k)
+    local fw = self.fw
     -- 获取成员地址与key长度
     local po, addr, size = self:check_key(k)
     if addr == 0 then
         -- 成员不存在返回nil
         return
     end
+
+    addr = addr + 8 + size
+    -- 定位到地址
+    fw:seek('set', addr)
+    -- 获取类型值
+    local tp = unpack(self.F.B, fw:read(1))
     -- 解包数据
-    local v = self:unpack(addr + 8 + size)
+    local v = self:unpack(addr, tp, size)
     return v
 end
 

@@ -17,14 +17,12 @@ function M:bind(db)
     assert(db.ver, _NAME .. '::请使用LuaDB 3.2以上版本！')
     assert(db.ver >= 32, _NAME .. '::请使用LuaDB 3.2以上版本！')
     self.bind = nil
-    if not db.super then
-        super = {}
-        for k, v in pairs(db) do
-            super[k] = v
-        end
-        db.super = super
+
+    super = {}
+    for k, v in pairs(db) do
+        super[k] = v
     end
-    super = db.super
+
     for k, v in pairs(self) do
         db[k] = v
         self[k] = nil
